@@ -1,90 +1,89 @@
 version: '3.8'
 
-services:
-  # 🐘
-  postgres:
-    image: postgres:16-alpine
-    container_name: aiqa_postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: aiqa
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+networks:
+  aiqa-network:
+    driver: bridge
 
-  # 🔴
+services:
   redis:
     image: redis:7-alpine
     container_name: aiqa_redis
-    restart: always
+    restart: unless-stopped
+    networks:
+      - aiqa-network
     ports:
       - '6379:6379'
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
-  # ⚙️
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: aiqa_backend
-    restart: always
+    restart: unless-stopped
+    networks:
+      - aiqa-network
     ports:
       - '8000:8000'
+    env_file:
+      - ./backend/.env
     environment:
-      NODE_ENV: development
-      PORT: 8000
-
-      # PostgreSQL config
-      DATABASE_TYPE: postgres
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: postgres
-      DATABASE_NAME: aiqa
-
-      # Redis config
+      # Override for Docker networking
       REDIS_HOST: redis
       REDIS_PORT: 6379
-
-      # API Keys / Config
-      SESSION_SECRET: ${SESSION_SECRET}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      PINECONE_API_KEY: ${PINECONE_API_KEY}
-      PINECONE_INDEX: ${PINECONE_INDEX}
-
-      # CORS
-      CORS_ORIGIN: ${CORS_ORIGIN}
     volumes:
       - backend-uploads:/app/uploads
+      - backend-db:/app
     depends_on:
-      - postgres
-      - redis
-    command: npm run dev
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
-  # 🖥️ Frontend (React/Vite)
+  # 🖥️ Frontend (React/Vite + Nginx)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: aiqa_frontend
-    restart: always
+    restart: unless-stopped
+    networks:
+      - aiqa-network
     ports:
-      - '5173:5173'
-    environment:
-      VITE_API_URL: http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: npm run dev
+      - '80:80'
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
 volumes:
-  postgres-data:
   redis-data:
   backend-uploads:
+  backend-db:
