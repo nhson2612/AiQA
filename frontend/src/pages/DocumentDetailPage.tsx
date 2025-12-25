@@ -1,12 +1,16 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePdfs } from '@/hooks/usePdfs'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { PdfViewer } from '@/components/documents/PdfViewer'
+import { MindMapView } from '@/components/documents/MindMapView'
+
+type TabType = 'split' | 'mindmap'
 
 export const DocumentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const { getPdfQuery, downloadAsync, isDownloading } = usePdfs()
+  const [activeTab, setActiveTab] = useState<TabType>('split')
 
   const { data, isLoading, error } = getPdfQuery(id!)
 
@@ -57,6 +61,31 @@ export const DocumentDetailPage: React.FC = () => {
             </Link>
             <h1 className="text-xl font-semibold text-gray-900">{data.pdf.name}</h1>
           </div>
+
+          {/* Tab Buttons */}
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('split')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'split'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              <span className="material-symbols-outlined text-lg">splitscreen</span>
+              PDF & Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('mindmap')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'mindmap'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }`}
+            >
+              <span className="material-symbols-outlined text-lg">account_tree</span>
+              Mind Map
+            </button>
+          </div>
+
           <button
             onClick={handleDownload}
             disabled={isDownloading}
@@ -97,16 +126,28 @@ export const DocumentDetailPage: React.FC = () => {
           </button>
         </div>
       </div>
+
       <div className="flex-1 overflow-hidden">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-          <div className="h-full border rounded-lg overflow-hidden bg-white">
-            <PdfViewer url={data.downloadUrl} />
+        {activeTab === 'split' && (
+          <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+            <div className="h-full border rounded-lg overflow-hidden bg-white">
+              <PdfViewer url={data.downloadUrl} />
+            </div>
+            <div className="h-full">
+              <ChatPanel documentId={id!} />
+            </div>
           </div>
-          <div className="h-full">
-            <ChatPanel documentId={id!} />
+        )}
+
+        {activeTab === 'mindmap' && (
+          <div className="h-full p-4">
+            <div className="h-full border rounded-lg overflow-hidden bg-white">
+              <MindMapView documentId={id!} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
 }
+

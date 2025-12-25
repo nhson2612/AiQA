@@ -35,11 +35,15 @@ export class Pdf {
   @UpdateDateColumn()
   updatedAt: Date
 
+  @Column({ type: 'simple-json', nullable: true })
+  mindMapSummary: any
+
   toJSON() {
     return {
       id: this.id,
       name: this.name,
       userId: this.userId,
+      mindMapSummary: this.mindMapSummary,
     }
   }
 }

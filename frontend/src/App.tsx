@@ -10,6 +10,7 @@ import { SignUpPage } from './pages/SignUpPage'
 import { DocumentsPage } from './pages/DocumentsPage'
 import { DocumentDetailPage } from './pages/DocumentDetailPage'
 import { ScoresPage } from './pages/ScoresPage'
+import { LibraryChatPage } from './pages/LibraryChatPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,14 @@ function App() {
                 element={
                   <AuthGuard>
                     <ScoresPage />
+                  </AuthGuard>
+                }
+              />
+              <Route
+                path="/library-chat"
+                element={
+                  <AuthGuard>
+                    <LibraryChatPage />
                   </AuthGuard>
                 }
               />

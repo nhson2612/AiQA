@@ -5,7 +5,7 @@ import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai'
 import { Document } from '@langchain/core/documents'
 import { readFile } from 'fs/promises'
 
-// Import pdf-parse directly
+// pdf-parse with page-by-page support
 const pdfParse = require('pdf-parse')
 
 let pineconeClient: Pinecone | null = null
@@ -24,11 +24,15 @@ const getPineconeClient = () => {
   return pineconeClient
 }
 
+/**
+ * Process a PDF document and store embeddings with page number metadata
+ * This enables source citations in chat responses
+ */
 export const processDocument = async (pdfId: string, filePath: string) => {
   console.log(`Processing document ${pdfId}...`)
 
   try {
-    // Read and parse PDF
+    // Read PDF file
     console.log('📄 Reading PDF file...')
     const dataBuffer = await readFile(filePath)
 
@@ -41,29 +45,59 @@ export const processDocument = async (pdfId: string, filePath: string) => {
       throw new Error('PDF contains no readable text')
     }
 
-    // Create Document objects
-    const docs = [
-      new Document({
-        pageContent: pdfData.text,
-        metadata: {
-          pdfId,
-          numPages: pdfData.numpages,
-          source: filePath,
-        },
-      }),
-    ]
+    // Create documents with page metadata
+    // pdf-parse doesn't give us page-by-page text directly, so we'll estimate pages
+    // by splitting the text proportionally
+    const totalPages = pdfData.numpages
+    const fullText = pdfData.text
+    const charsPerPage = Math.ceil(fullText.length / totalPages)
 
-    console.log(`Loaded ${docs.length} document from PDF`)
+    const docs: Document[] = []
 
-    // Split text into chunks
+    // Split into approximate pages for metadata tracking
+    for (let i = 0; i < totalPages; i++) {
+      const startIdx = i * charsPerPage
+      const endIdx = Math.min(startIdx + charsPerPage, fullText.length)
+      const pageText = fullText.substring(startIdx, endIdx).trim()
+
+      if (pageText.length > 0) {
+        docs.push(
+          new Document({
+            pageContent: pageText,
+            metadata: {
+              pdfId,
+              pageNumber: i + 1,
+              totalPages,
+              source: filePath,
+            },
+          })
+        )
+      }
+    }
+
+    console.log(`📄 Created ${docs.length} page documents`)
+
+    // Split each page into smaller chunks while preserving page metadata
     console.log('✂️  Splitting text into chunks...')
     const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: 800,
+      chunkOverlap: 150,
     })
 
-    const splitDocs = await textSplitter.splitDocuments(docs)
-    console.log(`✅ Split into ${splitDocs.length} chunks`)
+    const splitDocs: Document[] = []
+    for (const doc of docs) {
+      const chunks = await textSplitter.splitDocuments([doc])
+      // Preserve the page metadata in each chunk
+      chunks.forEach((chunk, idx) => {
+        chunk.metadata = {
+          ...doc.metadata,
+          chunkIndex: idx,
+        }
+      })
+      splitDocs.push(...chunks)
+    }
+
+    console.log(`✅ Split into ${splitDocs.length} chunks with page metadata`)
 
     if (splitDocs.length === 0) {
       throw new Error('No chunks created from PDF')
@@ -76,7 +110,6 @@ export const processDocument = async (pdfId: string, filePath: string) => {
       modelName: 'text-embedding-004',
     })
     console.log('✅ Embeddings client created')
-    console.log('>>>>>>>>>>>>>>>>>> EMD', embeddings)
 
     // Store in Pinecone
     console.log('📌 Connecting to Pinecone...')

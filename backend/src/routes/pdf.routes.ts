@@ -7,6 +7,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { processDocument } from '../services/embeddings.service'
+import { generateMindMap } from '../services/mindmap.service'
 
 const router = Router()
 
@@ -189,6 +190,28 @@ router.delete('/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Delete PDF error:', error)
     res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Generate Mind Map for PDF
+router.get('/:id/mindmap', authenticate, async (req, res) => {
+  try {
+    const pdfRepository = AppDataSource.getRepository(Pdf)
+    const pdf = await pdfRepository.findOne({
+      where: { id: req.params.id, userId: req.user!.id },
+    })
+
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' })
+    }
+
+    console.log(`🧠 Generating mind map for PDF: ${pdf.name}`)
+    const mindMapData = await generateMindMap(pdf.id, pdf.name)
+
+    res.json(mindMapData)
+  } catch (error) {
+    console.error('Mind map generation error:', error)
+    res.status(500).json({ message: 'Failed to generate mind map' })
   }
 })
 

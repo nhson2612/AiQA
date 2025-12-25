@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 import { ChatArgs } from './chat.service'
 
 export interface LLMLike {
@@ -12,31 +12,44 @@ export interface LLMLike {
 }
 
 export const buildLLM = (args: ChatArgs): LLMLike => {
-  const apiKey = process.env.GOOGLE_API_KEY
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) {
-    throw new Error('GOOGLE_API_KEY is not set')
+    throw new Error('GROQ_API_KEY is not set')
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' })
+  const groq = new Groq({ apiKey })
+  const model = process.env.GROQ_MODEL || 'llama3-8b-8192'
 
   return {
     streaming: args.streaming,
 
     async invoke(messages) {
-      const prompt = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n')
-      const result = await model.generateContent(prompt)
-      const text = result.response.text()
-      return { content: text }
+      const chatCompletion = await groq.chat.completions.create({
+        messages: messages.map((m) => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content,
+        })),
+        model: model,
+      })
+
+      const content = chatCompletion.choices[0]?.message?.content || ''
+      return { content }
     },
 
     async *stream(messages) {
-      const prompt = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n')
-      const stream = await model.generateContentStream(prompt)
-      for await (const chunk of stream.stream) {
-        const text = chunk?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (text) {
-          yield { content: text }
+      const stream = await groq.chat.completions.create({
+        messages: messages.map((m) => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content,
+        })),
+        model: model,
+        stream: true,
+      })
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || ''
+        if (content) {
+          yield { content }
         }
       }
     },

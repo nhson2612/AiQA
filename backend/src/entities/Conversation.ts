@@ -27,6 +27,9 @@ export class Conversation {
   llm?: string
 
   @Column({ nullable: true })
+  title?: string
+
+  @Column({ nullable: true })
   pdfId?: string
 
   @ManyToOne(() => Pdf, (pdf) => pdf.conversations, { nullable: true })
@@ -52,7 +55,9 @@ export class Conversation {
   toJSON() {
     return {
       id: this.id,
+      title: this.title,
       pdfId: this.pdfId,
+      createdAt: this.createdAt,
       messages: this.messages ? this.messages.map((m) => m.toJSON()) : [],
     }
   }

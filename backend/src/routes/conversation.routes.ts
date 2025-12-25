@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { AppDataSource } from '../config/database'
 import { Conversation, Pdf, Message } from '../entities'
 import { authenticate } from '../middleware/auth'
-import { buildChat } from '../services/chat.service'
+import { buildChat, generateChatTitle } from '../services/chat.service'
 
 const router = Router()
 
@@ -88,22 +88,20 @@ router.post('/:id/messages', authenticate, async (req, res) => {
     const conversationRepository = AppDataSource.getRepository(Conversation)
     const conversation = await conversationRepository.findOne({
       where: { id: conversationId, userId: req.user!.id },
-      relations: ['pdf'],
+      relations: ['pdf', 'messages'],
     })
 
     if (!conversation) {
       return res.status(404).json({ message: 'Conversation not found' })
     }
 
-    // Ensure conversation has a pdfId
     if (!conversation.pdfId) {
       return res.status(400).json({ message: 'Conversation has no associated PDF' })
     }
 
-    // Store pdfId in a const to satisfy TypeScript
     const pdfId = conversation.pdfId
 
-    // Verify PDF exists and is processed
+    // Verify PDF exists
     console.log(`📄 Checking PDF: ${pdfId}`)
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
@@ -114,9 +112,10 @@ router.post('/:id/messages', authenticate, async (req, res) => {
       console.error(`❌ PDF not found: ${pdfId}`)
       return res.status(404).json({ message: 'PDF not found' })
     }
-
-    // Check if PDF is processed (optional - you can add a status field to PDF entity)
     console.log(`✅ PDF found: ${pdf.name}`)
+
+    // Check if this is the first message (for title generation)
+    const isFirstMessage = !conversation.messages || conversation.messages.length === 0
 
     // Save user message
     console.log('💬 Saving user message...')
@@ -129,10 +128,20 @@ router.post('/:id/messages', authenticate, async (req, res) => {
     await messageRepository.save(userMessage)
     console.log('✅ User message saved')
 
+    // Auto-generate title if this is the first message
+    if (isFirstMessage && !conversation.title) {
+      console.log('🏷️  Generating chat title...')
+      try {
+        const title = await generateChatTitle(input, pdf.name)
+        await conversationRepository.update(conversationId, { title })
+        console.log(`✅ Title generated: "${title}"`)
+      } catch (e) {
+        console.error('Failed to generate title:', e)
+      }
+    }
+
     // Build chat
     console.log('🔨 Building chat...')
-    console.log(`📄 Conversation PDF ID: ${pdfId}`)
-    console.log(`📄 Conversation ID: ${conversationId}`)
     try {
       const chat = await buildChat({
         conversationId,
@@ -151,16 +160,28 @@ router.post('/:id/messages', authenticate, async (req, res) => {
         res.setHeader('Content-Type', 'text/event-stream')
         res.setHeader('Cache-Control', 'no-cache')
         res.setHeader('Connection', 'keep-alive')
+        res.setHeader('X-Accel-Buffering', 'no')
 
         try {
           console.log('🌊 Starting streaming...')
-          const stream = await chat.stream(input)
+          const stream = chat.stream(input)
           let fullResponse = ''
 
           for await (const chunk of stream) {
-            const content = chunk
-            fullResponse += content
-            res.write(`data: ${JSON.stringify({ content })}\n\n`)
+            if (typeof chunk === 'string') {
+              // Regular content chunk
+              fullResponse += chunk
+              res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`)
+              if (typeof (res as any).flush === 'function') {
+                (res as any).flush()
+              }
+            } else if (chunk.type === 'suggestions') {
+              // Suggestions event
+              res.write(`data: ${JSON.stringify({ suggestions: chunk.data })}\n\n`)
+              if (typeof (res as any).flush === 'function') {
+                (res as any).flush()
+              }
+            }
           }
           console.log('✅ Streaming complete')
 
@@ -183,20 +204,21 @@ router.post('/:id/messages', authenticate, async (req, res) => {
         // Non-streaming response
         console.log('💬 Generating response...')
         const response = await chat.run(input)
-        console.log('✅ Response generated:', response.substring(0, 50) + '...')
+        console.log('✅ Response generated')
 
         // Save assistant message
         const assistantMessage = messageRepository.create({
           conversationId,
           role: 'assistant',
-          content: response,
+          content: response.content,
         })
         await messageRepository.save(assistantMessage)
         console.log('✅ Assistant message saved')
 
         res.json({
           role: 'assistant',
-          content: response,
+          content: response.content,
+          suggestions: response.suggestions,
         })
       }
     } catch (buildError) {
@@ -205,6 +227,30 @@ router.post('/:id/messages', authenticate, async (req, res) => {
     }
   } catch (error) {
     console.error('Send message error:', error)
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+// Rename conversation
+router.patch('/:id', authenticate, async (req, res) => {
+  try {
+    const conversationId = req.params.id
+    const { title } = req.body
+
+    const conversationRepository = AppDataSource.getRepository(Conversation)
+    const conversation = await conversationRepository.findOne({
+      where: { id: conversationId, userId: req.user!.id },
+    })
+
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found' })
+    }
+
+    await conversationRepository.update(conversationId, { title })
+
+    res.json({ id: conversationId, title })
+  } catch (error) {
+    console.error('Rename conversation error:', error)
     res.status(500).json({ message: 'Internal server error' })
   }
 })

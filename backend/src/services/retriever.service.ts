@@ -47,8 +47,8 @@ export const buildRetriever = async (args: ChatArgs): Promise<Retriever> => {
       console.log(`🔍 Searching for query: "${query}"`)
       console.log(`📄 Using namespace: ${args.pdfId}`)
 
-      const results = await (vectorStore as any).similaritySearch(query, 4)
-      console.log(`✅ Found ${results.length} results`)
+      const results = await (vectorStore as any).similaritySearch(query, 6)
+      console.log(`✅ Found ${results.length} results for this query`)
 
       if (results.length === 0) {
         console.warn(`⚠️  No results found for PDF ID: ${args.pdfId}`)
