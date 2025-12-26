@@ -56,6 +56,7 @@ export const pdfsApi = {
   },
 
   getDownloadUrl: (id: string): string => {
-    return `/api/pdfs/${id}/download`
+    const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+    return `${apiBaseUrl}/api/pdfs/${id}/download`
   },
 }

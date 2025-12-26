@@ -165,7 +165,8 @@ export const MindMapView: React.FC<MindMapViewProps> = ({ documentId }) => {
             setError(null)
 
             try {
-                const response = await fetch(`/api/pdfs/${documentId}/mindmap`, {
+                const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+                const response = await fetch(`${apiBaseUrl}/api/pdfs/${documentId}/mindmap`, {
                     credentials: 'include',
                 })
 

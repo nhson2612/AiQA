@@ -56,7 +56,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ documentId }) => {
     let accumulatedResponse = ''
 
     try {
-      await fetchEventSource(`/api/conversations/${activeConversationId}/messages?stream=true`, {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+      await fetchEventSource(`${apiBaseUrl}/api/conversations/${activeConversationId}/messages?stream=true`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

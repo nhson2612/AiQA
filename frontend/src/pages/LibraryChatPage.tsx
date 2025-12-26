@@ -28,7 +28,8 @@ export const LibraryChatPage: React.FC = () => {
     useEffect(() => {
         const loadConversations = async () => {
             try {
-                const response = await fetch('/api/library/conversations', {
+                const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+                const response = await fetch(`${apiBaseUrl}/api/library/conversations`, {
                     credentials: 'include',
                 })
                 if (response.ok) {
@@ -64,7 +65,8 @@ export const LibraryChatPage: React.FC = () => {
         let accumulatedResponse = ''
 
         try {
-            await fetchEventSource(`/api/library/messages?stream=true`, {
+            const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+            await fetchEventSource(`${apiBaseUrl}/api/library/messages?stream=true`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

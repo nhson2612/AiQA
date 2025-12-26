@@ -14,8 +14,11 @@ RUN npm ci --legacy-peer-deps
 # Copy source code
 COPY . .
 
-# Build for production
-RUN npm run build
+# Accept build argument for API URL
+ARG VITE_API_URL
+
+# Build for production (Pass VITE_API_URL explicitly to ensure Vite reads it)
+RUN VITE_API_URL=$VITE_API_URL npm run build
 
 # ============================================
 # PRODUCTION STAGE

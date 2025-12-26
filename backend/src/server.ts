@@ -13,7 +13,9 @@ import { errorHandler } from './middleware/errorHandler'
 const session = require('express-session')
 
 const app = express()
+app.set('trust proxy', 1) // Trust first proxy (Cloud Run Load Balancer)
 const PORT = process.env.PORT || 8000
+
 
 // Middleware
 app.use(helmet())
@@ -30,18 +32,17 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Session configuration
 const sessionMiddleware = session({
-  store: new RedisStore({ client: redisClient as any }),
+  store: redisClient ? new RedisStore({ client: redisClient as any }) : undefined,
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true khi dùng HTTPS
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' cho cross-domain
-    domain: process.env.COOKIE_DOMAIN || undefined, // set domain nếu cần
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    domain: process.env.COOKIE_DOMAIN || undefined,
   },
 })
 

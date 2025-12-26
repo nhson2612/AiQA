@@ -27,15 +27,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url }) => {
         let fetchUrl = url
         if (!url.startsWith('http://') && !url.startsWith('https://')) {
           // If relative URL, prepend backend base URL
-          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/'
-
-          // Extract backend domain without /api/ suffix
-          // From: "https://aiqa-be-savr.onrender.com/api/"
-          // To: "https://aiqa-be-savr.onrender.com"
-          const backendDomain = apiBaseUrl.replace(/\/api\/?$/, '')
-
-          // Combine: backend domain + relative URL
-          fetchUrl = backendDomain + url
+          const apiBaseUrl = import.meta.env.VITE_API_URL || ''
+          fetchUrl = apiBaseUrl + url
           console.log('PDF Viewer - Converted to absolute URL:', fetchUrl)
         }
 
