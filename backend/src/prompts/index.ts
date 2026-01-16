@@ -9,8 +9,12 @@ export {
 // Library chat prompts
 export { LIBRARY_SYSTEM_PROMPT, buildLibraryUserMessage } from './library.prompts'
 
+// Synthesis prompts (multi-document analysis)
+export { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisUserMessage } from './synthesis.prompts'
+
 // Mind map prompts
 export { MINDMAP_SYSTEM_PROMPT, buildMindMapUserMessage } from './mindmap.prompts'
 
 // Types
 export type { PromptTemplate, ChatContext, LibraryContext, MindMapContext } from './types'
+

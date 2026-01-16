@@ -6,19 +6,23 @@ import { AnswerQuestionWorkflow } from './workflows/AnswerQuestionWorkflow';
 import { AnswerLibraryWorkflow } from './workflows/AnswerLibraryWorkflow';
 import { AnswerQuestionStreamWorkflow } from './workflows/AnswerQuestionStreamWorkflow';
 import { AnswerLibraryStreamWorkflow } from './workflows/AnswerLibraryStreamWorkflow';
+import { AnswerSynthesisWorkflow } from './workflows/AnswerSynthesisWorkflow';
+import { AnswerSynthesisStreamWorkflow } from './workflows/AnswerSynthesisStreamWorkflow';
 
 export interface ChatAgentInput {
-    task: 'answer_question' | 'answer_library';
+    task: 'answer_question' | 'answer_library' | 'answer_synthesis';
     userQuery: string;
     pdfId?: string; // Optional for library search
-    userId?: string; // Required for library search
+    userId?: string; // Required for library/synthesis search
+    selectedPdfIds?: string[]; // Required for synthesis - specific PDFs to analyze
     conversationHistory: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export interface ChatAgentStreamInput {
     userQuery: string;
     pdfId?: string; // Optional for library stream
-    userId?: string; // Required for library stream
+    userId?: string; // Required for library/synthesis stream
+    selectedPdfIds?: string[]; // For synthesis stream - specific PDFs to analyze
     conversationHistory: { role: 'user' | 'assistant'; content: string }[];
 }
 
@@ -47,6 +51,8 @@ export class ChatAgent implements IAgent {
                     return await this.answerQuestion(input);
                 case 'answer_library':
                     return await this.answerLibrary(input);
+                case 'answer_synthesis':
+                    return await this.answerSynthesis(input);
                 default:
                     logger.error('[ChatAgent] Unknown task requested', { task: (input as any).task });
                     throw new Error(`Unknown task: ${(input as any).task}`);
@@ -66,23 +72,32 @@ export class ChatAgent implements IAgent {
      * Now uses StreamingWorkflow pattern for clean, extensible architecture
      */
     async *stream(input: ChatAgentStreamInput): AsyncGenerator<StreamChunk> {
-        const isLibraryChat = !input.pdfId;
-        const taskName = isLibraryChat ? 'answer_library' : 'answer_question';
+        // Determine task type: synthesis > library > question
+        const isSynthesis = input.selectedPdfIds && input.selectedPdfIds.length > 0;
+        const isLibraryChat = !input.pdfId && !isSynthesis;
+        const taskName = isSynthesis ? 'answer_synthesis' : (isLibraryChat ? 'answer_library' : 'answer_question');
 
         logger.info(`[ChatAgent] Stream started: ${taskName}`, {
             pdfId: input.pdfId,
+            selectedPdfCount: input.selectedPdfIds?.length,
             queryLength: input.userQuery.length,
         });
 
-        // Select appropriate workflow
-        const workflow = isLibraryChat
-            ? new AnswerLibraryStreamWorkflow()
-            : new AnswerQuestionStreamWorkflow();
+        // Select appropriate workflow based on task type
+        let workflow;
+        if (isSynthesis) {
+            workflow = new AnswerSynthesisStreamWorkflow();
+        } else if (isLibraryChat) {
+            workflow = new AnswerLibraryStreamWorkflow();
+        } else {
+            workflow = new AnswerQuestionStreamWorkflow();
+        }
 
         const initialContext: IChatContext = {
             userQuery: input.userQuery,
             pdfId: input.pdfId,
             userId: input.userId,
+            selectedPdfIds: input.selectedPdfIds,
             conversationHistory: input.conversationHistory,
         };
 
@@ -206,5 +221,59 @@ export class ChatAgent implements IAgent {
             });
         }
     }
-}
 
+    private async answerSynthesis(input: ChatAgentInput): Promise<ChatAgentOutput> {
+        logger.info('[ChatAgent] Starting synthesis across selected documents', {
+            userId: input.userId,
+            selectedPdfCount: input.selectedPdfIds?.length,
+            queryLength: input.userQuery.length,
+        });
+
+        if (!input.userId) {
+            throw new Error('userId is required for synthesis');
+        }
+
+        if (!input.selectedPdfIds || input.selectedPdfIds.length === 0) {
+            throw new Error('selectedPdfIds is required for synthesis');
+        }
+
+        try {
+            const workflow = new AnswerSynthesisWorkflow();
+
+            const initialContext: IChatContext = {
+                userQuery: input.userQuery,
+                userId: input.userId,
+                selectedPdfIds: input.selectedPdfIds,
+                conversationHistory: input.conversationHistory,
+            };
+
+            const finalContext = await workflow.execute(initialContext);
+
+            logger.info('[ChatAgent] Synthesis completed successfully', {
+                answerLength: finalContext.answer?.length || 0,
+                suggestionCount: finalContext.suggestions?.length || 0
+            });
+
+            return {
+                answer: finalContext.answer || '',
+                suggestions: finalContext.suggestions || [],
+            };
+        } catch (error) {
+            logger.error('[ChatAgent] Failed to synthesize documents', {
+                userId: input.userId,
+                selectedPdfIds: input.selectedPdfIds,
+                error: (error as Error).message,
+                stack: (error as Error).stack
+            });
+
+            if (error instanceof DatabaseError || error instanceof ExternalAPIError) {
+                throw error;
+            }
+
+            throw new ExternalAPIError('ChatAgent', 500, {
+                message: 'Failed to synthesize documents',
+                originalError: (error as Error).message
+            });
+        }
+    }
+}

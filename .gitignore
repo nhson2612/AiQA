@@ -51,9 +51,15 @@ _bmad/
 _bmad-output/
 
 
-#
+# agents
 .agent/
 .qwen/
 .claude/
 .idea/
 .gemini/
+
+# GCP
+gcp-sa-key.json
+
+# PRIVATE 
+*.pdf

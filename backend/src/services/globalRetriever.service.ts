@@ -13,15 +13,27 @@ export interface GlobalRetrieverResult {
 export type GlobalRetriever = (query: string) => Promise<GlobalRetrieverResult[]>
 
 /**
- * Build a retriever that searches across ALL user's PDFs
+ * Build a retriever that searches across user's PDFs
+ * @param userId - The user ID to search for PDFs
+ * @param pdfIds - Optional array of PDF IDs to scope the search (for synthesis)
  */
-export const buildGlobalRetriever = async (userId: string): Promise<GlobalRetriever> => {
+export const buildGlobalRetriever = async (userId: string, pdfIds?: string[]): Promise<GlobalRetriever> => {
     // Get all PDFs for this user
     const pdfRepository = AppDataSource.getRepository(Pdf)
-    const userPdfs = await pdfRepository.find({
+    let userPdfs = await pdfRepository.find({
         where: { userId },
         select: ['id', 'name'],
     })
+
+    // If pdfIds provided, filter to only those specific PDFs
+    if (pdfIds && pdfIds.length > 0) {
+        const pdfIdSet = new Set(pdfIds)
+        userPdfs = userPdfs.filter(pdf => pdfIdSet.has(pdf.id))
+        logger.debug('[buildGlobalRetriever] Scoped to specific PDFs', {
+            requestedCount: pdfIds.length,
+            foundCount: userPdfs.length
+        })
+    }
 
     if (userPdfs.length === 0) {
         return async () => []

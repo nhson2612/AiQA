@@ -1,18 +1,28 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useRecoilState } from 'recoil'
 import { usePdfs } from '@/hooks/usePdfs'
 import { Toast } from '@/components/common/Toast'
+import { selectedPdfIdsAtom } from '@/atoms/synthesisAtom'
+import { SynthesisActionBar } from '@/components/documents/SynthesisActionBar'
 
 type TabType = 'all' | 'pdfs' | 'recent' | 'archived'
 
 export const DocumentsPage: React.FC = () => {
   const { pdfs, isLoading, uploadAsync, isUploading, deleteAsync } = usePdfs()
+  const [selectedPdfIds, setSelectedPdfIds] = useRecoilState(selectedPdfIdsAtom)
   const [activeTab, setActiveTab] = useState<TabType>('all')
   const [toast, setToast] = useState<{
     message: string
     type: 'success' | 'error' | 'info'
   } | null>(null)
   const navigate = useNavigate()
+
+  const toggleSelection = (pdfId: string) => {
+    setSelectedPdfIds((prev) =>
+      prev.includes(pdfId) ? prev.filter((id) => id !== pdfId) : [...prev, pdfId]
+    )
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -146,51 +156,68 @@ export const DocumentsPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-            {filteredPdfs.map((pdf) => (
-              <div
-                key={pdf.id}
-                className="group flex flex-col bg-white dark:bg-[#2d1a16] border border-[#ead2cd] dark:border-[#4a2b24] rounded-sm transition-all duration-150 hover:border-primary hover:shadow-xl hover:shadow-primary/5"
-              >
-                {/* Card Content */}
-                <Link
-                  to={`/documents/${pdf.id}`}
-                  className="p-6 flex flex-col items-center text-center border-b border-dashed border-[#ead2cd] dark:border-[#4a2b24]"
+            {filteredPdfs.map((pdf) => {
+              const isSelected = selectedPdfIds.includes(pdf.id)
+              return (
+                <div
+                  key={pdf.id}
+                  className={`group relative flex flex-col bg-white dark:bg-[#2d1a16] border rounded-sm transition-all duration-150 hover:shadow-xl hover:shadow-primary/5 ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-[#ead2cd] dark:border-[#4a2b24] hover:border-primary'}`}
                 >
-                  <div className="size-16 mb-4 flex items-center justify-center bg-primary/5 text-primary rounded-lg group-hover:scale-110 transition-transform duration-200">
-                    <span className="material-symbols-outlined text-4xl">picture_as_pdf</span>
-                  </div>
-                  <h3 className="text-[#1d0f0c] dark:text-[#fcf9f8] text-base font-bold truncate w-full px-2">
-                    {pdf.name}
-                  </h3>
-                  <div className="mt-2 flex flex-col gap-1">
-                    <p className="text-[#a15645] dark:text-[#d1b1aa] text-xs font-normal">
-                      Uploaded: {formatDate(pdf.createdAt)}
-                    </p>
-                    <p className="text-primary text-[10px] font-bold tracking-widest uppercase bg-primary/10 px-2 py-0.5 rounded-full inline-block mx-auto">
-                      {formatFileSize(pdf.size || 0)}
-                    </p>
-                  </div>
-                </Link>
-
-                {/* Card Actions */}
-                <div className="flex divide-x divide-[#ead2cd] dark:divide-[#4a2b24]">
+                  {/* Selection Checkbox */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      toggleSelection(pdf.id)
+                    }}
+                    className={`absolute top-2 left-2 z-10 size-6 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 hover:border-primary'}`}
+                  >
+                    {isSelected && (
+                      <span className="material-symbols-outlined text-sm">check</span>
+                    )}
+                  </button>
+                  {/* Card Content */}
                   <Link
                     to={`/documents/${pdf.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-[#1d0f0c] dark:text-[#fcf9f8] hover:bg-background-light dark:hover:bg-primary/10 transition-colors uppercase tracking-wider"
+                    className="p-6 flex flex-col items-center text-center border-b border-dashed border-[#ead2cd] dark:border-[#4a2b24]"
                   >
-                    <span className="material-symbols-outlined text-sm">visibility</span>
-                    View
+                    <div className="size-16 mb-4 flex items-center justify-center bg-primary/5 text-primary rounded-lg group-hover:scale-110 transition-transform duration-200">
+                      <span className="material-symbols-outlined text-4xl">picture_as_pdf</span>
+                    </div>
+                    <h3 className="text-[#1d0f0c] dark:text-[#fcf9f8] text-base font-bold truncate w-full px-2">
+                      {pdf.name}
+                    </h3>
+                    <div className="mt-2 flex flex-col gap-1">
+                      <p className="text-[#a15645] dark:text-[#d1b1aa] text-xs font-normal">
+                        Uploaded: {formatDate(pdf.createdAt)}
+                      </p>
+                      <p className="text-primary text-[10px] font-bold tracking-widest uppercase bg-primary/10 px-2 py-0.5 rounded-full inline-block mx-auto">
+                        {formatFileSize(pdf.size || 0)}
+                      </p>
+                    </div>
                   </Link>
-                  <button
-                    onClick={() => handleDelete(pdf.id, pdf.name)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors uppercase tracking-wider"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                    Delete
-                  </button>
+
+                  {/* Card Actions */}
+                  <div className="flex divide-x divide-[#ead2cd] dark:divide-[#4a2b24]">
+                    <Link
+                      to={`/documents/${pdf.id}`}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-[#1d0f0c] dark:text-[#fcf9f8] hover:bg-background-light dark:hover:bg-primary/10 transition-colors uppercase tracking-wider"
+                    >
+                      <span className="material-symbols-outlined text-sm">visibility</span>
+                      View
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(pdf.id, pdf.name)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors uppercase tracking-wider"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                      Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {/* Add New Placeholder */}
             <label
@@ -217,6 +244,9 @@ export const DocumentsPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Synthesis Action Bar */}
+      <SynthesisActionBar />
 
       {/* Toast notification */}
       {toast && (

@@ -23,9 +23,14 @@ const PORT = process.env.PORT || 8000
 
 // Middleware
 app.use(helmet())
+
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+  : ['http://localhost:5173']
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
@@ -98,7 +103,8 @@ const startServer = async () => {
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`, {
         port: PORT,
-        env: process.env.NODE_ENV || 'development'
+        env: process.env.NODE_ENV || 'development',
+        allowedOrigins,
       })
     })
   } catch (error) {

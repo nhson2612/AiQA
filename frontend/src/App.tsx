@@ -10,6 +10,7 @@ import { DocumentsPage } from './pages/DocumentsPage'
 import { DocumentDetailPage } from './pages/DocumentDetailPage'
 import { ScoresPage } from './pages/ScoresPage'
 import { LibraryChatPage } from './pages/LibraryChatPage'
+import { SynthesisChatPage } from './pages/SynthesisChatPage'
 import { Header } from './components/common/Header'
 
 const queryClient = new QueryClient({
@@ -82,6 +83,14 @@ function App() {
                   <ProtectedRoute>
                     <LibraryChatPage />
                   </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/synthesis"
+                element={
+                  <ChatRoute>
+                    <SynthesisChatPage />
+                  </ChatRoute>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />
