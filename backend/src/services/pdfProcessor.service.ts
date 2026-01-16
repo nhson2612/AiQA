@@ -1,5 +1,6 @@
 import * as path from 'path'
 import { DocumentAgent } from '../agents/document/DocumentAgent'
+import logger from './logger.service'
 
 export interface PageContent {
     pageNumber: number
@@ -19,7 +20,7 @@ export interface ProcessedPdf {
  * Refactored to use the Agentic Architecture (DocumentAgent)
  */
 export async function processPdf(filePath: string): Promise<ProcessedPdf> {
-    console.log(`🔧 Loading PDF via DocumentAgent: ${filePath}`)
+    logger.info(`[pdfProcessor] Loading PDF via DocumentAgent`, { filePath })
 
     const agent = new DocumentAgent();
 
@@ -37,7 +38,7 @@ export async function processPdf(filePath: string): Promise<ProcessedPdf> {
         } as ProcessedPdf;
 
     } catch (error) {
-        console.error('DocumentAgent failed:', error);
+        logger.error('DocumentAgent processing failed', { error: (error as Error).message, filePath });
         throw error;
     }
 }

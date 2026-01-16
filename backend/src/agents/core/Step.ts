@@ -1,4 +1,5 @@
 import { IStep, IStepResult, IWorkflowContext } from './types';
+import logger from '../../services/logger.service';
 
 export abstract class Step<TContext extends IWorkflowContext> implements IStep<TContext> {
     abstract name: string;
@@ -6,12 +7,12 @@ export abstract class Step<TContext extends IWorkflowContext> implements IStep<T
 
     async execute(context: TContext): Promise<IStepResult> {
         try {
-            console.log(`[Step] Starting: ${this.name}`);
+            logger.debug(`[Step] Starting: ${this.name}`);
             const result = await this.run(context);
-            console.log(`[Step] Completed: ${this.name}`);
+            logger.debug(`[Step] Completed: ${this.name}`);
             return result;
         } catch (error) {
-            console.error(`[Step] Failed: ${this.name}`, error);
+            logger.error(`[Step] Failed: ${this.name}`, { error });
             return {
                 success: false,
                 error: error instanceof Error ? error : new Error(String(error))

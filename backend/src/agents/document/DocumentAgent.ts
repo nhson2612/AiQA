@@ -1,6 +1,7 @@
 import { IAgent } from '../core/types';
 import { IngestPdfWorkflow } from './workflows/IngestPdfWorkflow';
 import { IProcessedDocumentContext } from './steps/ProcessImagesStep';
+import logger from '../../services/logger.service';
 
 export class DocumentAgent implements IAgent {
     name = 'DocumentAgent';
@@ -16,7 +17,7 @@ export class DocumentAgent implements IAgent {
     }
 
     private async ingestPdf(filePath: string): Promise<any> {
-        console.log(`[DocumentAgent] Starting PDF Ingestion for: ${filePath}`);
+        logger.info(`[DocumentAgent] Starting PDF Ingestion for: ${filePath}`);
 
         const workflow = new IngestPdfWorkflow();
         const initialContext: IProcessedDocumentContext = { filePath };

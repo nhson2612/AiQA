@@ -27,7 +27,7 @@ export class RetrieveContextStep extends Step<IChatContext> {
         for (const query of queries) {
             const result = await retriever.execute({
                 query,
-                namespace: context.pdfId, // Now TypeScript knows this is string (not undefined)
+                namespace: context.pdfId,
                 topK: 6,
             });
 

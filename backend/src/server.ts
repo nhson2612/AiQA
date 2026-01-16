@@ -93,14 +93,16 @@ app.use((err: AppError, req: express.Request, res: express.Response, next: expre
 const startServer = async () => {
   try {
     await AppDataSource.initialize()
-    console.log('✅ Database connected')
+    logger.info('Database connected successfully')
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`)
-      console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`)
+      logger.info(`Server running on port ${PORT}`, {
+        port: PORT,
+        env: process.env.NODE_ENV || 'development'
+      })
     })
   } catch (error) {
-    console.error('❌ Error starting server:', error)
+    logger.error('Error starting server', { error: (error as Error).message })
     process.exit(1)
   }
 }

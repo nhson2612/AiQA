@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth'
 import { ChatAgent, StreamChunk } from '../agents/chat/ChatAgent'
 import { validateRequest } from '../middleware/validate'
 import { libraryMessageSchema } from '../validators/schemas'
+import { createContextLogger } from '../services/logger.service'
 
 const router = Router()
 
@@ -22,7 +23,8 @@ router.post('/conversations', authenticate, async (req, res) => {
         await conversationRepository.save(conversation)
         res.json(conversation.toJSON())
     } catch (error) {
-        console.error('Create library conversation error:', error)
+        const contextLogger = createContextLogger(req)
+        contextLogger.error('Create library conversation error', { error: (error as Error).message })
         res.status(500).json({ message: 'Internal server error' })
     }
 })
@@ -42,13 +44,15 @@ router.get('/conversations', authenticate, async (req, res) => {
 
         res.json(conversations.map((c) => c.toJSON()))
     } catch (error) {
-        console.error('List library conversations error:', error)
+        const contextLogger = createContextLogger(req)
+        contextLogger.error('List library conversations error', { error: (error as Error).message })
         res.status(500).json({ message: 'Internal server error' })
     }
 })
 
 // Send message to library chat
 router.post('/messages', authenticate, validateRequest(libraryMessageSchema), async (req, res) => {
+    const contextLogger = createContextLogger(req)
     try {
         const { input, conversationId } = req.body
         const streaming = req.query.stream === 'true'
@@ -64,6 +68,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
                 relations: ['messages'],
             })
             if (!conversation) {
+                contextLogger.warn('Conversation not found', { conversationId })
                 return res.status(404).json({ message: 'Conversation not found' })
             }
         } else {
@@ -75,6 +80,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
                 messages: [],
             })
             await conversationRepository.save(conversation)
+            contextLogger.info('New library conversation created', { conversationId: conversation.id })
         }
 
         // Save user message
@@ -99,6 +105,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
             res.setHeader('X-Accel-Buffering', 'no')
 
             try {
+                contextLogger.info('Starting library streaming response')
                 // Use ChatAgent streaming
                 const stream = chatAgent.stream({
                     userQuery: input,
@@ -118,7 +125,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
                     } else if (chunk.type === 'suggestions' && chunk.suggestions) {
                         res.write(`data: ${JSON.stringify({ suggestions: chunk.suggestions })}\n\n`)
                     } else if (chunk.type === 'error') {
-                        console.error('Stream error:', chunk.error)
+                        contextLogger.error('Stream chunk error', { error: chunk.error })
                     }
                 }
 
@@ -129,18 +136,20 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
                     content: fullResponse,
                 })
                 await messageRepository.save(assistantMessage)
+                contextLogger.info('Library streaming response completed')
 
                 res.write(`data: ${JSON.stringify({ conversationId: conversation.id })}\n\n`)
                 res.write(`data: [DONE]\n\n`)
                 res.end()
 
             } catch (error) {
-                console.error('Library chat streaming error:', error)
+                contextLogger.error('Library chat streaming error', { error: (error as Error).message })
                 res.write(`data: ${JSON.stringify({ error: 'Streaming failed' })}\n\n`)
                 res.end()
             }
         } else {
             // Non-streaming execution
+            contextLogger.info('Starting library non-streaming response')
             const result = await chatAgent.execute({
                 task: 'answer_library',
                 userQuery: input,
@@ -154,6 +163,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
                 content: result.answer,
             })
             await messageRepository.save(assistantMessage)
+            contextLogger.info('Library non-streaming response completed')
 
             res.json({
                 conversationId: conversation.id,
@@ -163,7 +173,7 @@ router.post('/messages', authenticate, validateRequest(libraryMessageSchema), as
             })
         }
     } catch (error) {
-        console.error('Library chat error:', error)
+        contextLogger.error('Library chat error', { error: (error as Error).message })
         res.status(500).json({ message: 'Internal server error' })
     }
 })

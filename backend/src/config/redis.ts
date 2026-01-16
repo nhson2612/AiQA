@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import logger from '../services/logger.service'
 
 let redisClient: Redis | undefined
 
@@ -17,13 +18,13 @@ if (process.env.REDIS_URI) {
   })
 } else {
   // Không có cấu hình Redis -> Không khởi tạo
-  console.log('⚠️ No Redis configuration found. Using MemoryStore for sessions.')
+  logger.warn('No Redis configuration found. Using MemoryStore for sessions.')
   redisClient = undefined
 }
 
 if (redisClient) {
-  redisClient.on('connect', () => console.log('✅ Redis connected'))
-  redisClient.on('error', (err) => console.error('❌ Redis error:', err))
+  redisClient.on('connect', () => logger.info('Redis connected'))
+  redisClient.on('error', (err) => logger.error('Redis error', { error: err.message }))
 }
 
 export default redisClient

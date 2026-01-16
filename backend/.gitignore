@@ -3,8 +3,10 @@ dist/
 .env
 .env*
 *.log
+logs/
 uploads/
 *.sqlite
 .DS_Store
 
 *.pem
+

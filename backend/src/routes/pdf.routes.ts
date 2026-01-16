@@ -28,7 +28,8 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json(pdfs.map((pdf) => pdf.toJSON()))
   } catch (error) {
-    console.error('List PDFs error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('List PDFs error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -96,6 +97,7 @@ router.post('/', authenticate as any, upload.single('file'), async (req, res, ne
 
 // Get PDF details
 router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, res) => {
+  const contextLogger = createContextLogger(req)
   try {
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
@@ -103,6 +105,7 @@ router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, 
     })
 
     if (!pdf) {
+      contextLogger.warn('PDF not found during details fetch', { pdfId: req.params.id })
       return res.status(404).json({ message: 'PDF not found' })
     }
 
@@ -122,14 +125,9 @@ router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, 
 
     const downloadUrl = `${baseUrl}/api/pdfs/${pdf.id}/download`
 
-    console.log('PDF Download URL:', {
-      BACKEND_URL: process.env.BACKEND_URL,
-      'x-forwarded-proto': req.get('x-forwarded-proto'),
-      'x-forwarded-host': req.get('x-forwarded-host'),
-      protocol: req.protocol,
-      host: req.get('host'),
+    contextLogger.debug('PDF Download details', {
       baseUrl,
-      finalUrl: downloadUrl,
+      downloadUrl,
     })
 
     res.json({
@@ -137,7 +135,7 @@ router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, 
       downloadUrl,
     })
   } catch (error) {
-    console.error('Get PDF error:', error)
+    contextLogger.error('Get PDF error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -166,7 +164,8 @@ router.get('/:id/download', authenticate, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(pdf.name)}"`)
     res.download(filePath, pdf.name)
   } catch (error) {
-    console.error('Download PDF error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('Download PDF error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })

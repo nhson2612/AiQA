@@ -1,6 +1,7 @@
 import { buildMemory, HistoryEntry } from './memory.service';
 import { ChatAgent } from '../agents/chat/ChatAgent';
 import { LlmTool } from '../agents/core/tools/LlmTool';
+import logger from './logger.service';
 import {
   CHAT_TITLE_PROMPT,
 } from '../prompts';
@@ -39,7 +40,7 @@ Generate title:`,
     const response = await llm.execute({ messages });
     return response.content.trim().substring(0, 100);
   } catch (e) {
-    console.error('Failed to generate title:', e);
+    logger.error('Failed to generate title', { error: (e as Error).message });
     return message.substring(0, 50) + (message.length > 50 ? '...' : '');
   }
 };
@@ -94,7 +95,7 @@ export const buildChat = async (args: ChatArgs): Promise<ChatInterface> => {
             }
             break;
           case 'error':
-            console.error('[ChatService] Stream error:', chunk.error);
+            logger.error('[ChatService] Stream error', { error: chunk.error });
             yield `Error: ${chunk.error}`;
             break;
           case 'done':

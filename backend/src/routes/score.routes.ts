@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { AppDataSource } from '../config/database'
 import { Score, Conversation } from '../entities'
 import { authenticate } from '../middleware/auth'
+import { createContextLogger } from '../services/logger.service'
 
 const router = Router()
 
@@ -39,7 +40,8 @@ router.post('/', authenticate, async (req, res) => {
 
     res.json(scoreEntity.toJSON())
   } catch (error) {
-    console.error('Create score error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('Create score error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -83,7 +85,8 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json(result)
   } catch (error) {
-    console.error('Get scores error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('Get scores error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })

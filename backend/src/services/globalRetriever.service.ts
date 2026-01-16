@@ -1,6 +1,7 @@
 import { RetrieverTool } from '../agents/core/tools/RetrieverTool'
 import { AppDataSource } from '../config/database'
 import { Pdf } from '../entities'
+import logger from './logger.service'
 
 export interface GlobalRetrieverResult {
     pageContent: string
@@ -46,9 +47,9 @@ export const buildGlobalRetriever = async (userId: string): Promise<GlobalRetrie
                     metadata: doc.metadata,
                     pdfId: pdf.id,
                     pdfName: pdf.name,
-                }))
+                })
             } catch (error) {
-                console.error(`❌ Error searching PDF ${pdf.id}:`, error)
+                logger.error(`Error searching PDF namespace`, { pdfId: pdf.id, error: (error as Error).message })
                 return []
             }
         })

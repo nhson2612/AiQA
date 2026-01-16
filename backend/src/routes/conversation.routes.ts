@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth'
 import { buildChat, generateChatTitle } from '../services/chat.service'
 import { validateRequest } from '../middleware/validate'
 import { sendMessageSchema } from '../validators/schemas'
+import { createContextLogger } from '../services/logger.service'
 
 const router = Router()
 
@@ -36,7 +37,8 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json(conversations.map((c) => c.toJSON()))
   } catch (error) {
-    console.error('List conversations error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('List conversations error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -71,13 +73,15 @@ router.post('/', authenticate, async (req, res) => {
 
     res.json(conversation.toJSON())
   } catch (error) {
-    console.error('Create conversation error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('Create conversation error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
 
 // Send message to conversation
 router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), async (req, res) => {
+  const contextLogger = createContextLogger(req)
   try {
     const conversationId = req.params.id
     const { input } = req.body
@@ -90,10 +94,12 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
     })
 
     if (!conversation) {
+      contextLogger.warn('Conversation not found', { conversationId })
       return res.status(404).json({ message: 'Conversation not found' })
     }
 
     if (!conversation.pdfId) {
+      contextLogger.warn('Conversation has no associated PDF', { conversationId })
       return res.status(400).json({ message: 'Conversation has no associated PDF' })
     }
 
@@ -106,7 +112,7 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
     })
 
     if (!pdf) {
-      console.error(`❌ PDF not found: ${pdfId}`)
+      contextLogger.error('PDF not found during chat', { pdfId })
       return res.status(404).json({ message: 'PDF not found' })
     }
 
@@ -128,7 +134,7 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
         const title = await generateChatTitle(input, pdf.name)
         await conversationRepository.update(conversationId, { title })
       } catch (e) {
-        console.error('Failed to generate title:', e)
+        contextLogger.error('Failed to generate title', { error: (e as Error).message })
       }
     }
 
@@ -153,7 +159,7 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
         res.setHeader('X-Accel-Buffering', 'no')
 
         try {
-          console.log('🌊 Starting streaming...')
+          contextLogger.info('Starting streaming response')
           const stream = chat.stream(input)
           let fullResponse = ''
 
@@ -173,7 +179,7 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
               }
             }
           }
-          console.log('✅ Streaming complete')
+          contextLogger.info('Streaming response completed')
 
           // Save assistant message
           const assistantMessage = messageRepository.create({
@@ -186,15 +192,14 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
           res.write(`data: [DONE]\n\n`)
           res.end()
         } catch (error) {
-          console.error('Streaming error:', error)
+          contextLogger.error('Streaming response failed', { error: (error as Error).message })
           res.write(`data: ${JSON.stringify({ error: 'Streaming failed' })}\n\n`)
           res.end()
         }
       } else {
         // Non-streaming response
-        console.log('💬 Generating response...')
+        contextLogger.info('Generating non-streaming response')
         const response = await chat.run(input)
-        console.log('✅ Response generated')
 
         // Save assistant message
         const assistantMessage = messageRepository.create({
@@ -203,7 +208,7 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
           content: response.content,
         })
         await messageRepository.save(assistantMessage)
-        console.log('✅ Assistant message saved')
+        contextLogger.info('Non-streaming response generated and saved')
 
         res.json({
           role: 'assistant',
@@ -212,11 +217,11 @@ router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), a
         })
       }
     } catch (buildError) {
-      console.error('❌ Error building chat:', buildError)
+      contextLogger.error('Failed to build chat system', { error: (buildError as Error).message })
       res.status(500).json({ message: 'Failed to build chat system' })
     }
   } catch (error) {
-    console.error('Send message error:', error)
+    contextLogger.error('Send message unexpected error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })
@@ -240,7 +245,8 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     res.json({ id: conversationId, title })
   } catch (error) {
-    console.error('Rename conversation error:', error)
+    const contextLogger = createContextLogger(req)
+    contextLogger.error('Rename conversation error', { error: (error as Error).message })
     res.status(500).json({ message: 'Internal server error' })
   }
 })

@@ -1,6 +1,7 @@
 import { IAgent } from '../core/types';
 import { GenerateMindmapWorkflow } from './workflows/GenerateMindmapWorkflow';
 import { IMindmapContext, IMindmapNode, IMindmapEdge } from './types';
+import logger from '../../services/logger.service';
 
 export interface MindmapAgentInput {
     task: 'generate_mindmap';
@@ -27,7 +28,7 @@ export class MindmapAgent implements IAgent {
     }
 
     private async generateMindmap(input: MindmapAgentInput): Promise<MindmapAgentOutput> {
-        console.log(`[MindmapAgent] Generating mindmap for PDF: ${input.pdfId}`);
+        logger.info(`[MindmapAgent] Generating mindmap for PDF`, { pdfId: input.pdfId });
 
         const workflow = new GenerateMindmapWorkflow();
         const initialContext: IMindmapContext = {
