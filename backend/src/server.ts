@@ -5,11 +5,15 @@ import express from 'express'
 import cors from 'cors'
 import { RedisStore } from 'connect-redis'
 import helmet from 'helmet'
-import morgan from 'morgan'
 import { AppDataSource } from './config/database'
 import redisClient from './config/redis'
 import routes from './routes'
-import { errorHandler } from './middleware/errorHandler'
+import logger, {
+  errorLogger,
+  requestLogger,
+  withRequestId,
+  AppError,
+} from './services/logger.service'
 const session = require('express-session')
 
 const app = express()
@@ -19,18 +23,21 @@ const PORT = process.env.PORT || 8000
 
 // Middleware
 app.use(helmet())
-app.use(morgan('dev'))
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Set-Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
+    exposedHeaders: ['Set-Cookie', 'X-Request-ID'],
   })
 )
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Logging middleware
+app.use(withRequestId)
+app.use(requestLogger)
 
 const sessionMiddleware = session({
   store: redisClient ? new RedisStore({ client: redisClient as any }) : undefined,
@@ -53,11 +60,34 @@ app.use('/api', routes)
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' })
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
 // Error handler
-app.use(errorHandler)
+app.use(errorLogger)
+app.use((err: AppError, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const statusCode = err.statusCode || 500
+  const message = err.isOperational ? err.message : 'Internal server error'
+  const errorId = req.requestId
+
+  logger.error({
+    errorId,
+    message: 'Error response sent',
+    statusCode,
+    errorMessage: err.message,
+    isOperational: err.isOperational,
+    context: err.context,
+  })
+
+  res.status(statusCode).json({
+    error: {
+      id: errorId,
+      message,
+      status: statusCode,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    },
+  })
+})
 
 // Initialize database and start server
 const startServer = async () => {

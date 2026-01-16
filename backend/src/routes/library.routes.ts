@@ -2,30 +2,11 @@ import { Router } from 'express'
 import { AppDataSource } from '../config/database'
 import { Conversation, Message } from '../entities'
 import { authenticate } from '../middleware/auth'
-import { buildGlobalRetriever, GlobalRetrieverResult } from '../services/globalRetriever.service'
-import { buildLLM } from '../services/llm.service'
-import { generateSuggestions } from '../services/chat.service'
-import { LIBRARY_SYSTEM_PROMPT, buildLibraryUserMessage } from '../prompts'
+import { ChatAgent, StreamChunk } from '../agents/chat/ChatAgent'
+import { validateRequest } from '../middleware/validate'
+import { libraryMessageSchema } from '../validators/schemas'
 
 const router = Router()
-
-// Configuration
-const RAG_TOP_K = parseInt(process.env.RAG_TOP_K || '5', 10)
-
-/**
- * Build context string with PDF source citations
- */
-const buildContextWithCitations = (docs: GlobalRetrieverResult[]): string => {
-    return docs
-        .map((d) => {
-            const pageNum = d.metadata?.pageNumber as number | undefined
-            const pageRef = pageNum ? `[${d.pdfName} - Trang ${pageNum}]` : `[${d.pdfName}]`
-            return `${pageRef}\n${d.pageContent}`
-        })
-        .join('\n\n---\n\n')
-}
-
-// Prompts are now imported from centralized prompts module
 
 // Create a library conversation (no PDF attached)
 router.post('/conversations', authenticate, async (req, res) => {
@@ -67,14 +48,10 @@ router.get('/conversations', authenticate, async (req, res) => {
 })
 
 // Send message to library chat
-router.post('/messages', authenticate, async (req, res) => {
+router.post('/messages', authenticate, validateRequest(libraryMessageSchema), async (req, res) => {
     try {
         const { input, conversationId } = req.body
         const streaming = req.query.stream === 'true'
-
-        if (!input) {
-            return res.status(400).json({ message: 'input is required' })
-        }
 
         let conversation: Conversation | null = null
         const conversationRepository = AppDataSource.getRepository(Conversation)
@@ -108,61 +85,12 @@ router.post('/messages', authenticate, async (req, res) => {
         })
         await messageRepository.save(userMessage)
 
-        // Build global retriever
-        console.log('🌐 Building global retriever...')
-        const retriever = await buildGlobalRetriever(req.user!.id)
-
-        // Search across all documents
-        console.log('🔍 Searching across library...')
-        const docs = await retriever(input)
-
-        if (docs.length === 0) {
-            const noDocsResponse = 'Tôi không tìm thấy thông tin liên quan trong thư viện tài liệu của bạn. Vui lòng thử hỏi theo cách khác.'
-
-            const assistantMessage = messageRepository.create({
-                conversationId: conversation.id,
-                role: 'assistant',
-                content: noDocsResponse,
-            })
-            await messageRepository.save(assistantMessage)
-
-            if (streaming) {
-                res.setHeader('Content-Type', 'text/event-stream')
-                res.setHeader('Cache-Control', 'no-cache')
-                res.setHeader('Connection', 'keep-alive')
-                res.write(`data: ${JSON.stringify({ content: noDocsResponse })}\n\n`)
-                res.write(`data: [DONE]\n\n`)
-                res.end()
-            } else {
-                res.json({
-                    conversationId: conversation.id,
-                    role: 'assistant',
-                    content: noDocsResponse,
-                    suggestions: [],
-                })
-            }
-            return
-        }
-
-        const context = buildContextWithCitations(docs)
-        console.log(`📄 Context from ${docs.length} chunks across library`)
-
-        // Build LLM
-        const llm = buildLLM({
-            conversationId: conversation.id,
-            pdfId: '',
-            streaming,
-            metadata: { conversationId: conversation.id, userId: req.user!.id, pdfId: '' },
-        })
-
-        const messages = [
-            LIBRARY_SYSTEM_PROMPT.build(),
-            ...(conversation.messages || []).slice(-6).map((m) => ({
-                role: m.role as 'user' | 'assistant',
-                content: m.content,
-            })),
-            { role: 'user' as const, content: buildLibraryUserMessage(input, context) },
-        ]
+        // Initialize Chat Agent
+        const chatAgent = new ChatAgent()
+        const history = conversation.messages.map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+        }))
 
         if (streaming) {
             res.setHeader('Content-Type', 'text/event-stream')
@@ -171,18 +99,30 @@ router.post('/messages', authenticate, async (req, res) => {
             res.setHeader('X-Accel-Buffering', 'no')
 
             try {
-                const stream = llm.stream(messages)
+                // Use ChatAgent streaming
+                const stream = chatAgent.stream({
+                    userQuery: input,
+                    userId: req.user!.id,
+                    conversationHistory: history,
+                })
+
                 let fullResponse = ''
 
                 for await (const chunk of stream) {
-                    fullResponse += chunk.content
-                    res.write(`data: ${JSON.stringify({ content: chunk.content })}\n\n`)
-                    if (typeof (res as unknown as { flush?: () => void }).flush === 'function') {
-                        (res as unknown as { flush: () => void }).flush()
+                    if (chunk.type === 'token' && chunk.content) {
+                        fullResponse += chunk.content
+                        res.write(`data: ${JSON.stringify({ content: chunk.content })}\n\n`)
+                        if (typeof (res as any).flush === 'function') {
+                            (res as any).flush()
+                        }
+                    } else if (chunk.type === 'suggestions' && chunk.suggestions) {
+                        res.write(`data: ${JSON.stringify({ suggestions: chunk.suggestions })}\n\n`)
+                    } else if (chunk.type === 'error') {
+                        console.error('Stream error:', chunk.error)
                     }
                 }
 
-                // Save assistant message
+                // Save assistant message after stream completes
                 const assistantMessage = messageRepository.create({
                     conversationId: conversation.id,
                     role: 'assistant',
@@ -190,37 +130,36 @@ router.post('/messages', authenticate, async (req, res) => {
                 })
                 await messageRepository.save(assistantMessage)
 
-                // Generate suggestions
-                const suggestions = await generateSuggestions(input, fullResponse, context)
-                if (suggestions.length > 0) {
-                    res.write(`data: ${JSON.stringify({ suggestions })}\n\n`)
-                }
-
                 res.write(`data: ${JSON.stringify({ conversationId: conversation.id })}\n\n`)
                 res.write(`data: [DONE]\n\n`)
                 res.end()
+
             } catch (error) {
                 console.error('Library chat streaming error:', error)
                 res.write(`data: ${JSON.stringify({ error: 'Streaming failed' })}\n\n`)
                 res.end()
             }
         } else {
-            const response = await llm.invoke(messages)
+            // Non-streaming execution
+            const result = await chatAgent.execute({
+                task: 'answer_library',
+                userQuery: input,
+                userId: req.user!.id,
+                conversationHistory: history,
+            })
 
             const assistantMessage = messageRepository.create({
                 conversationId: conversation.id,
                 role: 'assistant',
-                content: response.content,
+                content: result.answer,
             })
             await messageRepository.save(assistantMessage)
-
-            const suggestions = await generateSuggestions(input, response.content, context)
 
             res.json({
                 conversationId: conversation.id,
                 role: 'assistant',
-                content: response.content,
-                suggestions,
+                content: result.answer,
+                suggestions: result.suggestions,
             })
         }
     } catch (error) {

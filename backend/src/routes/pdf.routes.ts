@@ -5,9 +5,15 @@ import { authenticate } from '../middleware/auth'
 import { upload } from '../middleware/upload'
 import * as fs from 'fs'
 import * as path from 'path'
+import logger from '../services/logger.service'
+import { createContextLogger } from '../services/logger.service'
+import { ValidationError, NotFoundError, DatabaseError, ExternalAPIError } from '../services/logger.service'
 
-import { processDocument } from '../services/embeddings.service'
+import { EmbeddingTool } from '../agents/core/tools/EmbeddingTool'
+import { processPdf } from '../services/pdfProcessor.service'
 import { generateMindMap } from '../services/mindmap.service'
+import { validateRequest } from '../middleware/validate'
+import { pdfIdParamSchema } from '../validators/schemas'
 
 const router = Router()
 
@@ -28,16 +34,25 @@ router.get('/', authenticate, async (req, res) => {
 })
 
 // Upload PDF
-router.post('/', authenticate as any, upload.single('file'), async (req, res) => {
+router.post('/', authenticate as any, upload.single('file'), async (req, res, next) => {
+  const contextLogger = createContextLogger(req)
+  contextLogger.info('PDF upload attempt')
+
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' })
+      contextLogger.warn('PDF upload failed: No file uploaded')
+      throw new ValidationError({ file: 'No file uploaded' })
     }
 
     const pdfRepository = AppDataSource.getRepository(Pdf)
 
     // Extract file ID from filename (without extension)
     const fileId = path.parse(req.file.filename).name
+    contextLogger.debug('Processing PDF file', {
+      fileId,
+      originalName: req.file.originalname,
+      size: req.file.size
+    })
 
     const pdf = pdfRepository.create({
       id: fileId,
@@ -46,21 +61,41 @@ router.post('/', authenticate as any, upload.single('file'), async (req, res) =>
     })
 
     await pdfRepository.save(pdf)
+    contextLogger.info('PDF record created in database', { pdfId: pdf.id });
 
     // Process document in background
-    processDocument(pdf.id, req.file.path).catch((err) => {
-      console.error('Document processing error:', err)
-    })
+    (async () => {
+      const processedPdf = await processPdf(req.file!.path);
+      const embeddingTool = new EmbeddingTool();
+      await embeddingTool.execute({
+        pdfId: pdf.id,
+        filePath: req.file!.path,
+        pages: processedPdf.pages,
+        totalPages: processedPdf.totalPages
+      });
+    })()
+      .then(() => {
+        contextLogger.info('PDF processing completed successfully', { pdfId: pdf.id })
+      })
+      .catch((err: Error) => {
+        contextLogger.error('Document processing error', {
+          pdfId: pdf.id,
+          error: err.message,
+          stack: err.stack
+        })
+        // Note: We don't throw this error as processing happens in background
+      })
 
+    contextLogger.info('PDF upload successful', { pdfId: pdf.id })
     res.json(pdf.toJSON())
   } catch (error) {
-    console.error('Upload PDF error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    contextLogger.error('Upload PDF error', { error: (error as Error).message })
+    next(error)
   }
 })
 
 // Get PDF details
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, res) => {
   try {
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
@@ -137,22 +172,23 @@ router.get('/:id/download', authenticate, async (req, res) => {
 })
 
 // Delete PDF
-router.delete('/:id', authenticate, async (req, res) => {
-  try {
-    console.log('Delete request received for PDF ID:', req.params.id)
-    console.log('User ID:', req.user?.id)
+router.delete('/:id', authenticate, async (req, res, next) => {
+  const contextLogger = createContextLogger(req)
+  contextLogger.info('PDF delete attempt', { pdfId: req.params.id })
 
+  try {
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
       where: { id: req.params.id, userId: req.user!.id },
       relations: ['conversations'],
     })
 
-    console.log('PDF found:', pdf ? 'Yes' : 'No')
-
     if (!pdf) {
-      return res.status(404).json({ message: 'PDF not found' })
+      contextLogger.warn('PDF delete failed: PDF not found', { pdfId: req.params.id })
+      throw new NotFoundError('PDF', req.params.id)
     }
+
+    contextLogger.debug('PDF found, proceeding with deletion', { pdfId: pdf.id, name: pdf.name })
 
     // Delete physical file
     const uploadDir = process.env.UPLOAD_DIR || './uploads'
@@ -161,15 +197,24 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath)
-        console.log(`Deleted file: ${filePath}`)
+        contextLogger.info('Physical file deleted', { filePath })
       } catch (fileError) {
-        console.error('Error deleting file:', fileError)
+        contextLogger.error('Error deleting physical file', {
+          filePath,
+          error: (fileError as Error).message
+        })
         // Continue with database deletion even if file deletion fails
       }
+    } else {
+      contextLogger.warn('Physical file not found, skipping file deletion', { filePath })
     }
 
     // Delete related conversations and messages first (cascade)
     if (pdf.conversations && pdf.conversations.length > 0) {
+      contextLogger.debug('Deleting related conversations and messages', {
+        conversationCount: pdf.conversations.length
+      })
+
       const conversationRepository = AppDataSource.getRepository(
         require('../entities').Conversation
       )
@@ -178,23 +223,31 @@ router.delete('/:id', authenticate, async (req, res) => {
       for (const conversation of pdf.conversations) {
         // Delete messages first
         await messageRepository.delete({ conversationId: conversation.id })
+        contextLogger.debug('Deleted messages for conversation', { conversationId: conversation.id })
+
         // Then delete conversation
         await conversationRepository.delete({ id: conversation.id })
+        contextLogger.debug('Deleted conversation', { conversationId: conversation.id })
       }
     }
 
     // Delete PDF record from database
     await pdfRepository.remove(pdf)
+    contextLogger.info('PDF record deleted from database', { pdfId: pdf.id })
 
+    contextLogger.info('PDF deletion successful', { pdfId: pdf.id })
     res.json({ message: 'PDF deleted successfully' })
   } catch (error) {
-    console.error('Delete PDF error:', error)
-    res.status(500).json({ message: 'Internal server error' })
+    contextLogger.error('Delete PDF error', { error: (error as Error).message })
+    next(error)
   }
 })
 
 // Generate Mind Map for PDF
-router.get('/:id/mindmap', authenticate, async (req, res) => {
+router.get('/:id/mindmap', authenticate, async (req, res, next) => {
+  const contextLogger = createContextLogger(req)
+  contextLogger.info('Mind map generation attempt', { pdfId: req.params.id })
+
   try {
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
@@ -202,16 +255,26 @@ router.get('/:id/mindmap', authenticate, async (req, res) => {
     })
 
     if (!pdf) {
-      return res.status(404).json({ message: 'PDF not found' })
+      contextLogger.warn('Mind map generation failed: PDF not found', { pdfId: req.params.id })
+      throw new NotFoundError('PDF', req.params.id)
     }
 
-    console.log(`🧠 Generating mind map for PDF: ${pdf.name}`)
+    contextLogger.info('Generating mind map', { pdfId: pdf.id, pdfName: pdf.name })
     const mindMapData = await generateMindMap(pdf.id, pdf.name)
+
+    contextLogger.info('Mind map generation successful', {
+      pdfId: pdf.id,
+      nodeCount: mindMapData.nodes.length,
+      edgeCount: mindMapData.edges.length
+    })
 
     res.json(mindMapData)
   } catch (error) {
-    console.error('Mind map generation error:', error)
-    res.status(500).json({ message: 'Failed to generate mind map' })
+    contextLogger.error('Mind map generation error', {
+      pdfId: req.params.id,
+      error: (error as Error).message
+    })
+    next(error)
   }
 })
 

@@ -44,3 +44,8 @@ Thumbs.db
 
 .gemini/
 gha-creds-*.json
+
+
+# BMAD
+_bmad/
+_bmad-output/

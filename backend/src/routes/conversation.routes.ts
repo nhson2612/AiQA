@@ -3,6 +3,8 @@ import { AppDataSource } from '../config/database'
 import { Conversation, Pdf, Message } from '../entities'
 import { authenticate } from '../middleware/auth'
 import { buildChat, generateChatTitle } from '../services/chat.service'
+import { validateRequest } from '../middleware/validate'
+import { sendMessageSchema } from '../validators/schemas'
 
 const router = Router()
 
@@ -75,15 +77,11 @@ router.post('/', authenticate, async (req, res) => {
 })
 
 // Send message to conversation
-router.post('/:id/messages', authenticate, async (req, res) => {
+router.post('/:id/messages', authenticate, validateRequest(sendMessageSchema), async (req, res) => {
   try {
     const conversationId = req.params.id
     const { input } = req.body
     const streaming = req.query.stream === 'true'
-
-    if (!input) {
-      return res.status(400).json({ message: 'input is required' })
-    }
 
     const conversationRepository = AppDataSource.getRepository(Conversation)
     const conversation = await conversationRepository.findOne({
@@ -102,7 +100,6 @@ router.post('/:id/messages', authenticate, async (req, res) => {
     const pdfId = conversation.pdfId
 
     // Verify PDF exists
-    console.log(`📄 Checking PDF: ${pdfId}`)
     const pdfRepository = AppDataSource.getRepository(Pdf)
     const pdf = await pdfRepository.findOne({
       where: { id: pdfId, userId: req.user!.id },
@@ -112,13 +109,11 @@ router.post('/:id/messages', authenticate, async (req, res) => {
       console.error(`❌ PDF not found: ${pdfId}`)
       return res.status(404).json({ message: 'PDF not found' })
     }
-    console.log(`✅ PDF found: ${pdf.name}`)
 
     // Check if this is the first message (for title generation)
     const isFirstMessage = !conversation.messages || conversation.messages.length === 0
 
     // Save user message
-    console.log('💬 Saving user message...')
     const messageRepository = AppDataSource.getRepository(Message)
     const userMessage = messageRepository.create({
       conversationId,
@@ -126,22 +121,18 @@ router.post('/:id/messages', authenticate, async (req, res) => {
       content: input,
     })
     await messageRepository.save(userMessage)
-    console.log('✅ User message saved')
 
     // Auto-generate title if this is the first message
     if (isFirstMessage && !conversation.title) {
-      console.log('🏷️  Generating chat title...')
       try {
         const title = await generateChatTitle(input, pdf.name)
         await conversationRepository.update(conversationId, { title })
-        console.log(`✅ Title generated: "${title}"`)
       } catch (e) {
         console.error('Failed to generate title:', e)
       }
     }
 
     // Build chat
-    console.log('🔨 Building chat...')
     try {
       const chat = await buildChat({
         conversationId,
@@ -153,7 +144,6 @@ router.post('/:id/messages', authenticate, async (req, res) => {
           pdfId,
         },
       })
-      console.log('✅ Chat built')
 
       if (streaming) {
         // Set headers for SSE
