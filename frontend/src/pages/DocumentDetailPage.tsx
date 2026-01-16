@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { usePdfs } from '@/hooks/usePdfs'
+import { usePdfs, usePdf } from '@/hooks/usePdfs'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { PdfViewer } from '@/components/documents/PdfViewer'
 import { MindMapView } from '@/components/documents/MindMapView'
@@ -10,10 +10,10 @@ type ViewMode = 'chat' | 'mindmap'
 
 export const DocumentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const { getPdfQuery, downloadAsync, isDownloading } = usePdfs()
+  const { downloadAsync, isDownloading } = usePdfs()
   const [viewMode, setViewMode] = useState<ViewMode>('chat')
 
-  const { data, isLoading, error } = getPdfQuery(id!)
+  const { data, isLoading, error } = usePdf(id!)
 
   const handleDownload = async () => {
     if (!id) return

@@ -10,18 +10,11 @@ interface Message {
     content: string
 }
 
-interface LibraryConversation {
-    id: string
-    title: string
-    messages: Message[]
-}
-
 export const LibraryChatPage: React.FC = () => {
     const [isStreaming, setIsStreaming] = useState(false)
     const [localMessages, setLocalMessages] = useState<Message[]>([])
     const [suggestions, setSuggestions] = useState<string[]>([])
     const [conversationId, setConversationId] = useState<string | null>(null)
-    const [conversations, setConversations] = useState<LibraryConversation[]>([])
     const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
     // Load library conversations on mount
@@ -34,7 +27,6 @@ export const LibraryChatPage: React.FC = () => {
                 })
                 if (response.ok) {
                     const data = await response.json()
-                    setConversations(data)
                     // If there's an existing conversation, load it
                     if (data.length > 0) {
                         setConversationId(data[0].id)

@@ -5,6 +5,14 @@ import { useSetRecoilState } from 'recoil'
 import { documentsAtom, documentsErrorAtom } from '@/atoms/documentsAtom'
 import { useEffect } from 'react'
 
+export const usePdf = (id: string) => {
+  return useQuery({
+    queryKey: ['pdf', id],
+    queryFn: () => pdfsApi.get(id),
+    enabled: !!id,
+  })
+}
+
 export const usePdfs = () => {
   const queryClient = useQueryClient()
   const setDocuments = useSetRecoilState(documentsAtom)
@@ -60,14 +68,6 @@ export const usePdfs = () => {
     },
   })
 
-  const getPdfQuery = (id: string) => {
-    return useQuery({
-      queryKey: ['pdf', id],
-      queryFn: () => pdfsApi.get(id),
-      enabled: !!id,
-    })
-  }
-
   return {
     pdfs,
     isLoading,
@@ -83,6 +83,5 @@ export const usePdfs = () => {
     downloadAsync: downloadMutation.mutateAsync,
     isDownloading: downloadMutation.isPending,
     downloadError: downloadMutation.error,
-    getPdfQuery,
   }
 }

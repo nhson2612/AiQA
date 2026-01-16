@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { Pdf } from '@/types'
 import { usePdfs } from '@/hooks/usePdfs'
@@ -9,7 +9,6 @@ interface DocumentCardProps {
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({ pdf }) => {
   const { downloadAsync, deleteAsync, isDownloading, isDeleting } = usePdfs()
-  const [showActions, setShowActions] = useState(false)
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault()

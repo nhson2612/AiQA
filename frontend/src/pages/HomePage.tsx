@@ -1,10 +1,13 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import user1 from '@/assets/images/user-1.png'
+import user2 from '@/assets/images/user-2.png'
+import user3 from '@/assets/images/user-3.png'
+import bgImage from '@/assets/images/background-image.png'
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <>
@@ -52,13 +55,13 @@ export const HomePage: React.FC = () => {
                   <div className="flex items-center gap-6 mt-4">
                     <div className="flex -space-x-3">
                       <div className="w-10 h-10 rounded-full border-2 border-background-light dark:border-background-dark bg-gray-200 bg-cover bg-center"
-                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCLPBAt9DRNM0424mCQ0TmrtCXGVqRL1PstFZ_JGGg8QXPH2EwCX4ZyUO-E3XzNjIXLHlZVjT0k7jRIfMo9YrSPr0uCoEGxmABTXR4ok3ZnvQb6UNQYzEBJU91npOZvOL4Eg8N3Vwy1Qe5CnhGCDQDY6hE17P3Kt5A_BHtFcJaIZ2ua26HMMSaoOuqBSPWEibniGu4hqPgk01dxrzOrLfH6ENJ52GYtIg_nSzBliOvrUS0VHH8UN_D_7zY4YVdRcRTUZdHvJccDmM4')" }}
+                        style={{ backgroundImage: `url(${user1})` }}
                       ></div>
                       <div className="w-10 h-10 rounded-full border-2 border-background-light dark:border-background-dark bg-gray-200 bg-cover bg-center"
-                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCHAyCETvb6Es5jjvQDdACcFqPzTDXP0RRAQNvF20I4NSGBZyQt9itNqXCxuScJ4n7NtXemTat9PHMubdBTgKcG40fPjAdYMPPpsSe4WhUv4BoanGwJ5fRHz0jZjthoodOl7jNs5hfHDT2UYVuBNiv2oyg18ZZvHKcvbSANrW04fpTnDYd-bD5WVp9MHF6tfnuKkHV8jsrhWPPC21H2RjOpzdJ1puCwAnUEJ9jRznFqdPDZbzsJaHnGffIMmxgtiTyApN31eNMlhTk')" }}
+                        style={{ backgroundImage: `url(${user2})` }}
                       ></div>
                       <div className="w-10 h-10 rounded-full border-2 border-background-light dark:border-background-dark bg-gray-200 bg-cover bg-center"
-                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBuofuX8Oh_XjZCMqONrOlYbfgOlBgn7lm7_GNJ30Bz-knd1of5_eMIRyQXV7rR8Yj4jBKtb57csld7DCmF6ofgotNYRZrjTgxRxVrxaaMYJUIdWPbPBZBWvUAgyXOelxuoFfGEjkBi_AWBDHki0FI4G1zNK6KWMYy7_BNzP2FFhQMkgBGGIGYMvRshiRp-QQx6TZk7t7EJhVUHjzxr8r-R-78s5yS7ofl_yBnfhGhQg1fQ4NK0NKDA8ChoXmWyJu3TQED0_trOGRQ')" }}
+                        style={{ backgroundImage: `url(${user3})` }}
                       ></div>
                     </div>
                     <p className="text-sm font-medium text-[#a15645] dark:text-[#d2b5ae]">
@@ -68,7 +71,7 @@ export const HomePage: React.FC = () => {
                 </div>
                 <div className="relative order-1 lg:order-2">
                   <div className="w-full aspect-square bg-cover bg-center rounded-xl shadow-2xl relative z-10 overflow-hidden border border-white/20"
-                    style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBequp7L2MXzVaC-ZSgbYMacwWDEQ-CH52ZSXzAOjlCESorLKyVVCjKIptxMaBkOdiAUXWno4_0oeCC2-IDBRju09skMY7jGi3rs82FxcrnKAPfxzJFb-enNLVPwNpvCpTBA9dk7USv7bcJdZJL6LSNvjlAdtYWSdNPYaWL2GGj8OT_b3IbdwBFC8HR0yW9u_mJAVgvQIGtoCMV12-0oBu6dOa89RhSKo9ZEaVuNauDj6f6V_6IbBzDbM6D_E6AFQRn0VaUn1Mits0")' }}>
+                    style={{ backgroundImage: `url(${bgImage})` }}>
                     <div className="absolute inset-0 bg-gradient-to-tr from-primary/40 to-transparent mix-blend-overlay"></div>
                   </div>
                   {/* Sharp accents */}

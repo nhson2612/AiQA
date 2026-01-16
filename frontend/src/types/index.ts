@@ -7,6 +7,8 @@ export interface Pdf {
   id: string
   name: string
   userId: string
+  createdAt: string
+  size: number
 }
 
 export interface Message {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactFlow, {
     Node,
     Edge,
@@ -96,7 +96,6 @@ const layoutNodes = (data: MindMapData): Node[] => {
     const verticalSpacing = 100
 
     // BFS to assign positions
-    let currentY = 0
     const queue: { id: string; level: number }[] = [{ id: rootId, level: 0 }]
     const visited = new Set<string>()
     const levels = new Map<number, string[]>()

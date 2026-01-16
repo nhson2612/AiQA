@@ -52,6 +52,14 @@ export const DocumentsPage: React.FC = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
+  const filteredPdfs = React.useMemo(() => {
+    if (activeTab === 'all' || activeTab === 'pdfs') return pdfs
+    if (activeTab === 'recent') {
+      return [...pdfs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5)
+    }
+    return pdfs
+  }, [pdfs, activeTab])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -88,8 +96,8 @@ export const DocumentsPage: React.FC = () => {
             <button
               onClick={() => setActiveTab('all')}
               className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'all'
-                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
-                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
                 }`}
             >
               <p className="text-sm font-bold tracking-tight">All Files</p>
@@ -97,8 +105,8 @@ export const DocumentsPage: React.FC = () => {
             <button
               onClick={() => setActiveTab('pdfs')}
               className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'pdfs'
-                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
-                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
                 }`}
             >
               <p className="text-sm font-bold tracking-tight">PDFs</p>
@@ -106,8 +114,8 @@ export const DocumentsPage: React.FC = () => {
             <button
               onClick={() => setActiveTab('recent')}
               className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'recent'
-                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
-                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
                 }`}
             >
               <p className="text-sm font-bold tracking-tight">Recent</p>
@@ -116,7 +124,7 @@ export const DocumentsPage: React.FC = () => {
         </div>
 
         {/* Document Grid */}
-        {pdfs.length === 0 ? (
+        {filteredPdfs.length === 0 ? (
           <div className="text-center py-20">
             <div className="size-20 mx-auto mb-6 flex items-center justify-center bg-primary/5 text-primary rounded-lg">
               <span className="material-symbols-outlined text-5xl">folder_open</span>
@@ -138,7 +146,7 @@ export const DocumentsPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-            {pdfs.map((pdf) => (
+            {filteredPdfs.map((pdf) => (
               <div
                 key={pdf.id}
                 className="group flex flex-col bg-white dark:bg-[#2d1a16] border border-[#ead2cd] dark:border-[#4a2b24] rounded-sm transition-all duration-150 hover:border-primary hover:shadow-xl hover:shadow-primary/5"
