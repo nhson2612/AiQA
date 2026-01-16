@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
   },
   "keywords": [],
   "author": "",
@@ -50,12 +52,20 @@
     "@types/express": "^5.0.3",
     "@types/express-session": "^1.18.2",
     "@types/helmet": "^0.0.48",
+    "@types/jest": "^30.0.0",
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.8.1",
+    "@types/supertest": "^6.0.3",
     "@types/uuid": "^9.0.8",
     "@types/winston": "^2.4.4",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.10",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

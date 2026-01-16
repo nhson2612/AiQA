@@ -28,13 +28,28 @@ app.use(
   })
 )
 
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-  : ['http://localhost:5173']
+const getNormalizedOrigins = () => {
+  const envOrigins = process.env.CORS_ORIGIN
+  if (!envOrigins) return ['http://localhost:5173']
+  return envOrigins.split(',').map((origin) => origin.trim().replace(/\/$/, ''))
+}
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (requestOrigin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!requestOrigin) return callback(null, true)
+
+      const allowedOrigins = getNormalizedOrigins()
+      const normalizedRequestOrigin = requestOrigin.replace(/\/$/, '')
+
+      if (allowedOrigins.includes(normalizedRequestOrigin)) {
+        callback(null, true)
+      } else {
+        console.warn(`[CORS] Blocked request from origin: ${requestOrigin}`)
+        callback(new Error('Not allowed by CORS'))
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
@@ -101,22 +116,31 @@ app.use((err: AppError, req: express.Request, res: express.Response, next: expre
 // Initialize database and start server
 const startServer = async () => {
   try {
-    await AppDataSource.initialize()
-    logger.info('Database connected successfully')
+    if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize()
+        logger.info('Database connected successfully')
+    }
 
-    app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`, {
-        port: PORT,
-        env: process.env.NODE_ENV || 'development',
-        allowedOrigins,
-      })
-    })
+    // Only listen if not in test environment or if we want to explicitly start it
+    if (process.env.NODE_ENV !== 'test') {
+        app.listen(PORT, () => {
+        logger.info(`Server running on port ${PORT}`, {
+            port: PORT,
+            env: process.env.NODE_ENV || 'development',
+            allowedOrigins: getNormalizedOrigins(),
+        })
+        })
+    }
   } catch (error) {
     logger.error('Error starting server', { error: (error as Error).message })
     process.exit(1)
   }
 }
 
-startServer()
+// Only start the server if this file is run directly
+if (require.main === module) {
+  startServer()
+}
 
+export { startServer }
 export default app
