@@ -135,7 +135,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ documentId }) => {
             />
           )}
           <button
-            className="rounded text-sm border border-blue-500 px-2 py-0.5 hover:bg-blue-50"
+            className="rounded text-sm border border-primary-500 px-2 py-0.5 hover:bg-primary-50"
             onClick={handleNewChat}
           >
             New Chat
@@ -161,7 +161,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ documentId }) => {
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className="text-sm px-3 py-1.5 rounded-full border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                  className="text-sm px-3 py-1.5 rounded-full border border-primary-300 bg-white text-primary-700 hover:bg-primary-50 hover:border-primary-400 transition-colors"
                 >
                   {suggestion}
                 </button>

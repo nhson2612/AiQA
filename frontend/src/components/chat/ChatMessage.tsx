@@ -43,7 +43,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     >
       <div
         className={classNames('max-w-[80%] rounded-lg px-4 py-2', {
-          'bg-blue-600 text-white': isUser,
+          'bg-primary text-white': isUser,
           'bg-gray-100 text-gray-900': !isUser && !isPending,
           'bg-gray-50 text-gray-600': isPending,
         })}

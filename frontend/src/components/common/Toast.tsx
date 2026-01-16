@@ -33,7 +33,7 @@ export const Toast: React.FC<ToastProps> = ({
       case 'error':
         return 'bg-red-500 text-white'
       case 'info':
-        return 'bg-blue-500 text-white'
+        return 'bg-primary-500 text-white'
       default:
         return 'bg-gray-500 text-white'
     }

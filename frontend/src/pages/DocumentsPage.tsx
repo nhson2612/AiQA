@@ -1,16 +1,13 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { usePdfs } from '@/hooks/usePdfs'
-import { DocumentCard } from '@/components/documents/DocumentCard'
-import { Alert } from '@/components/common/Alert'
 import { Toast } from '@/components/common/Toast'
-import { useRecoilValue } from 'recoil'
-import { documentsErrorAtom } from '@/atoms/documentsAtom'
+
+type TabType = 'all' | 'pdfs' | 'recent' | 'archived'
 
 export const DocumentsPage: React.FC = () => {
-  const { pdfs, isLoading, uploadAsync, isUploading } = usePdfs()
-  const error = useRecoilValue(documentsErrorAtom)
-  const [uploadError, setUploadError] = useState('')
+  const { pdfs, isLoading, uploadAsync, isUploading, deleteAsync } = usePdfs()
+  const [activeTab, setActiveTab] = useState<TabType>('all')
   const [toast, setToast] = useState<{
     message: string
     type: 'success' | 'error' | 'info'
@@ -22,95 +19,196 @@ export const DocumentsPage: React.FC = () => {
     if (!file) return
 
     if (file.type !== 'application/pdf') {
-      setUploadError('Please upload a PDF file')
-      setToast({ message: 'Vui lòng chọn file PDF', type: 'error' })
+      setToast({ message: 'Please upload a PDF file', type: 'error' })
       return
     }
 
-    setUploadError('')
     try {
       const pdf = await uploadAsync(file)
-      setToast({ message: `Tài liệu "${pdf.name}" đã được tải lên thành công!`, type: 'success' })
+      setToast({ message: `Document "${pdf.name}" uploaded successfully!`, type: 'success' })
       navigate(`/documents/${pdf.id}`)
     } catch (err: any) {
-      setUploadError(err.message || 'Upload failed')
-      setToast({ message: 'Tải lên thất bại. Vui lòng thử lại.', type: 'error' })
+      setToast({ message: 'Upload failed. Please try again.', type: 'error' })
     }
   }
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">My Documents</h1>
-        <div>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileUpload}
-            className="hidden"
-            id="file-upload"
-            disabled={isUploading}
-          />
-          <label
-            htmlFor="file-upload"
-            className={`inline-flex items-center justify-center px-4 py-2 text-base font-medium rounded focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 cursor-pointer ${
-              isUploading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isUploading ? (
-              <span className="flex items-center justify-center">
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Uploading...
-              </span>
-            ) : (
-              'Upload PDF'
-            )}
-          </label>
-        </div>
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return
+
+    try {
+      await deleteAsync(id)
+      setToast({ message: 'Document deleted successfully', type: 'success' })
+    } catch (err) {
+      setToast({ message: 'Failed to delete document', type: 'error' })
+    }
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
+    )
+  }
 
-      {(error || uploadError) && (
-        <div className="mb-6">
-          <Alert type="error">{error || uploadError}</Alert>
+  return (
+    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden technical-grid">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 lg:px-10 py-8">
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-2 mb-6">
+          <Link to="/" className="text-[#a15645] dark:text-[#d1b1aa] text-sm font-medium hover:text-primary transition-colors">
+            Home
+          </Link>
+          <span className="material-symbols-outlined text-sm text-[#a15645] opacity-50">chevron_right</span>
+          <span className="text-[#1d0f0c] dark:text-[#fcf9f8] text-sm font-medium">Document Library</span>
         </div>
-      )}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        {/* Page Heading & Tabs */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 border-b border-[#ead2cd] dark:border-[#4a2b24] pb-0">
+          <div className="flex flex-col gap-1 pb-4">
+            <h1 className="text-[#1d0f0c] dark:text-[#fcf9f8] text-4xl font-black tracking-tight">
+              Document Library
+            </h1>
+            <p className="text-[#a15645] dark:text-[#d1b1aa] text-sm">
+              Index and manage your technical knowledge base.
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-8">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'all'
+                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                }`}
+            >
+              <p className="text-sm font-bold tracking-tight">All Files</p>
+            </button>
+            <button
+              onClick={() => setActiveTab('pdfs')}
+              className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'pdfs'
+                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                }`}
+            >
+              <p className="text-sm font-bold tracking-tight">PDFs</p>
+            </button>
+            <button
+              onClick={() => setActiveTab('recent')}
+              className={`flex flex-col items-center justify-center border-b-[3px] pb-4 pt-2 transition-colors ${activeTab === 'recent'
+                  ? 'border-primary text-[#1d0f0c] dark:text-[#fcf9f8]'
+                  : 'border-transparent text-[#a15645] dark:text-[#d1b1aa] hover:text-primary'
+                }`}
+            >
+              <p className="text-sm font-bold tracking-tight">Recent</p>
+            </button>
+          </div>
         </div>
-      ) : pdfs.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📄</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
-          <p className="text-gray-600 mb-6">Upload your first PDF to get started</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {pdfs.map((pdf) => (
-            <DocumentCard key={pdf.id} pdf={pdf} />
-          ))}
-        </div>
-      )}
+
+        {/* Document Grid */}
+        {pdfs.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="size-20 mx-auto mb-6 flex items-center justify-center bg-primary/5 text-primary rounded-lg">
+              <span className="material-symbols-outlined text-5xl">folder_open</span>
+            </div>
+            <h3 className="text-xl font-bold text-[#1d0f0c] dark:text-[#fcf9f8] mb-2">No documents yet</h3>
+            <p className="text-[#a15645] dark:text-[#d1b1aa] mb-6">Upload your first PDF to get started</p>
+            <label htmlFor="file-upload-empty" className="cursor-pointer inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold text-sm rounded hover:bg-primary/90 transition-colors">
+              <span className="material-symbols-outlined">upload_file</span>
+              Upload Document
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="file-upload-empty"
+              disabled={isUploading}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+            {pdfs.map((pdf) => (
+              <div
+                key={pdf.id}
+                className="group flex flex-col bg-white dark:bg-[#2d1a16] border border-[#ead2cd] dark:border-[#4a2b24] rounded-sm transition-all duration-150 hover:border-primary hover:shadow-xl hover:shadow-primary/5"
+              >
+                {/* Card Content */}
+                <Link
+                  to={`/documents/${pdf.id}`}
+                  className="p-6 flex flex-col items-center text-center border-b border-dashed border-[#ead2cd] dark:border-[#4a2b24]"
+                >
+                  <div className="size-16 mb-4 flex items-center justify-center bg-primary/5 text-primary rounded-lg group-hover:scale-110 transition-transform duration-200">
+                    <span className="material-symbols-outlined text-4xl">picture_as_pdf</span>
+                  </div>
+                  <h3 className="text-[#1d0f0c] dark:text-[#fcf9f8] text-base font-bold truncate w-full px-2">
+                    {pdf.name}
+                  </h3>
+                  <div className="mt-2 flex flex-col gap-1">
+                    <p className="text-[#a15645] dark:text-[#d1b1aa] text-xs font-normal">
+                      Uploaded: {formatDate(pdf.createdAt)}
+                    </p>
+                    <p className="text-primary text-[10px] font-bold tracking-widest uppercase bg-primary/10 px-2 py-0.5 rounded-full inline-block mx-auto">
+                      {formatFileSize(pdf.size || 0)}
+                    </p>
+                  </div>
+                </Link>
+
+                {/* Card Actions */}
+                <div className="flex divide-x divide-[#ead2cd] dark:divide-[#4a2b24]">
+                  <Link
+                    to={`/documents/${pdf.id}`}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-[#1d0f0c] dark:text-[#fcf9f8] hover:bg-background-light dark:hover:bg-primary/10 transition-colors uppercase tracking-wider"
+                  >
+                    <span className="material-symbols-outlined text-sm">visibility</span>
+                    View
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(pdf.id, pdf.name)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors uppercase tracking-wider"
+                  >
+                    <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Add New Placeholder */}
+            <label
+              htmlFor="file-upload"
+              className="flex flex-col items-center justify-center border-2 border-dashed border-[#ead2cd] dark:border-[#4a2b24] rounded-sm p-10 cursor-pointer hover:border-primary group transition-colors"
+            >
+              <div className="size-14 rounded-full border border-[#ead2cd] dark:border-[#4a2b24] group-hover:border-primary flex items-center justify-center mb-4 transition-colors">
+                <span className="material-symbols-outlined text-[#a15645] dark:text-[#d1b1aa] group-hover:text-primary">
+                  add
+                </span>
+              </div>
+              <p className="text-[#a15645] dark:text-[#d1b1aa] text-sm font-bold group-hover:text-primary uppercase tracking-widest">
+                {isUploading ? 'Uploading...' : 'Add New Document'}
+              </p>
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="file-upload"
+              disabled={isUploading}
+            />
+          </div>
+        )}
+      </main>
 
       {/* Toast notification */}
       {toast && (
@@ -121,6 +219,17 @@ export const DocumentsPage: React.FC = () => {
           onClose={() => setToast(null)}
         />
       )}
+
+      {/* Technical grid background style */}
+      <style>{`
+        .technical-grid {
+          background-image: radial-gradient(#ead2cd 0.5px, transparent 0.5px);
+          background-size: 24px 24px;
+        }
+        .dark .technical-grid {
+          background-image: radial-gradient(#4a2b24 0.5px, transparent 0.5px);
+        }
+      `}</style>
     </div>
   )
 }

@@ -5,15 +5,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        "primary": "#5b13ec",
-        "primary-hover": "#4a0fc0",
-        "background-light": "#f6f6f8",
-        "background-dark": "#161022",
+        "primary": "#fe512a",
+        "primary-hover": "#e04520",
+        "brand-orange": "#fe512a",
+        "tech-gray": "#f4f4f5",
+        "background-light": "#fcf9f8",
+        "background-dark": "#23130f",
       },
       fontFamily: {
-        "display": ["Manrope", "sans-serif"]
+        "display": ["Space Grotesk", "sans-serif"],
+        "sans": ["Inter", "sans-serif"],
+        "mono": ["JetBrains Mono", "monospace"],
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/container-queries'),
+  ],
 }

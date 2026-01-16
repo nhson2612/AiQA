@@ -94,7 +94,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     )
   }
@@ -106,7 +106,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url }) => {
           <p className="text-red-600 mb-2">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
           >
             Retry
           </button>

@@ -131,7 +131,7 @@ export const LibraryChatPage: React.FC = () => {
     if (isLoadingHistory) {
         return (
             <div className="flex items-center justify-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
         )
     }
@@ -148,7 +148,7 @@ export const LibraryChatPage: React.FC = () => {
                         </Link>
                         <div>
                             <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-blue-600">auto_awesome</span>
+                                <span className="material-symbols-outlined text-primary-600">auto_awesome</span>
                                 Library Chat
                             </h1>
                             <p className="text-sm text-gray-500">Hỏi đáp xuyên suốt tất cả tài liệu của bạn</p>
@@ -156,7 +156,7 @@ export const LibraryChatPage: React.FC = () => {
                     </div>
                     <button
                         onClick={handleNewChat}
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100"
                     >
                         <span className="material-symbols-outlined text-sm mr-1">add</span>
                         Chat mới
@@ -168,8 +168,8 @@ export const LibraryChatPage: React.FC = () => {
                 <div className="h-full flex flex-col bg-slate-50 border-x">
                     {localMessages.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                            <div className="size-20 rounded-full bg-blue-100 flex items-center justify-center mb-6">
-                                <span className="material-symbols-outlined text-4xl text-blue-600">library_books</span>
+                            <div className="size-20 rounded-full bg-primary-100 flex items-center justify-center mb-6">
+                                <span className="material-symbols-outlined text-4xl text-primary-600">library_books</span>
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">Hỏi bất cứ điều gì</h2>
                             <p className="text-gray-600 max-w-md mb-8">
@@ -181,7 +181,7 @@ export const LibraryChatPage: React.FC = () => {
                                         <button
                                             key={i}
                                             onClick={() => handleSubmit(example)}
-                                            className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                                            className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-gray-50 hover:border-primary-300"
                                         >
                                             {example}
                                         </button>
@@ -201,7 +201,7 @@ export const LibraryChatPage: React.FC = () => {
                                     <button
                                         key={idx}
                                         onClick={() => handleSuggestionClick(suggestion)}
-                                        className="text-sm px-3 py-1.5 rounded-full border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                                        className="text-sm px-3 py-1.5 rounded-full border border-primary-300 bg-white text-primary-700 hover:bg-primary-50 hover:border-primary-400 transition-colors"
                                     >
                                         {suggestion}
                                     </button>

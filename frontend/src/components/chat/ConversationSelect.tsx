@@ -16,7 +16,7 @@ export const ConversationSelect: React.FC<ConversationSelectProps> = ({
     <select
       value={activeId || ''}
       onChange={(e) => onChange(e.target.value)}
-      className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
     >
       {conversations.map((conv, index) => (
         <option key={conv.id} value={conv.id}>

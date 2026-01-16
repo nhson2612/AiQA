@@ -194,7 +194,7 @@ export const MindMapView: React.FC<MindMapViewProps> = ({ documentId }) => {
     if (isLoading) {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-slate-50">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
                 <p className="text-gray-600 font-medium">Đang tạo sơ đồ tư duy...</p>
                 <p className="text-gray-400 text-sm mt-1">AI đang phân tích tài liệu của bạn</p>
             </div>

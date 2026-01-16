@@ -67,7 +67,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ pdf }) => {
           <button
             onClick={handleDownload}
             disabled={isDownloading}
-            className="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Tải xuống"
           >
             {isDownloading ? (
