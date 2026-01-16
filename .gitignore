@@ -49,3 +49,11 @@ gha-creds-*.json
 # BMAD
 _bmad/
 _bmad-output/
+
+
+#
+.agent/
+.qwen/
+.claude/
+.idea/
+.gemini/
