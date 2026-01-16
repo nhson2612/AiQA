@@ -1,4 +1,4 @@
-import { IWorkflowContext, IStepResult } from '../core/types';
+import { IWorkflowContext } from '../core/types';
 
 export interface IChatContext extends IWorkflowContext {
     // Input

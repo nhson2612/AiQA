@@ -1,16 +1,11 @@
 import { IAgent } from '../core/types';
-import { AnswerQuestionWorkflow } from './workflows/AnswerQuestionWorkflow';
 import { IChatContext } from './types';
 import logger from '../../services/logger.service';
 import { DatabaseError, ExternalAPIError } from '../../services/logger.service';
-import { LlmTool } from '../core/tools/LlmTool';
-import { RetrieverTool } from '../core/tools/RetrieverTool';
-import { GenerateSearchQueriesStep } from './steps/GenerateSearchQueriesStep';
-import { RetrieveContextStep } from './steps/RetrieveContextStep';
-import { GlobalRetrieveContextStep } from './steps/GlobalRetrieveContextStep';
-import { GenerateAnswerStep } from './steps/GenerateAnswerStep';
-import { GenerateSuggestionsStep } from './steps/GenerateSuggestionsStep';
-import { CHAT_SYSTEM_PROMPT, buildUserMessageWithContext, CHAT_SUGGESTIONS_PROMPT, LIBRARY_SYSTEM_PROMPT, buildLibraryUserMessage } from '../../prompts';
+import { AnswerQuestionWorkflow } from './workflows/AnswerQuestionWorkflow';
+import { AnswerLibraryWorkflow } from './workflows/AnswerLibraryWorkflow';
+import { AnswerQuestionStreamWorkflow } from './workflows/AnswerQuestionStreamWorkflow';
+import { AnswerLibraryStreamWorkflow } from './workflows/AnswerLibraryStreamWorkflow';
 
 export interface ChatAgentInput {
     task: 'answer_question' | 'answer_library';
@@ -68,97 +63,49 @@ export class ChatAgent implements IAgent {
 
     /**
      * Streaming execution - yields tokens as they arrive from LLM
-     * Uses the same retrieval workflow but streams the final answer
+     * Now uses StreamingWorkflow pattern for clean, extensible architecture
      */
     async *stream(input: ChatAgentStreamInput): AsyncGenerator<StreamChunk> {
-        logger.info('[ChatAgent] Stream started', {
+        const isLibraryChat = !input.pdfId;
+        const taskName = isLibraryChat ? 'answer_library' : 'answer_question';
+
+        logger.info(`[ChatAgent] Stream started: ${taskName}`, {
             pdfId: input.pdfId,
             queryLength: input.userQuery.length,
-            historyLength: input.conversationHistory.length
         });
 
+        // Select appropriate workflow
+        const workflow = isLibraryChat
+            ? new AnswerLibraryStreamWorkflow()
+            : new AnswerQuestionStreamWorkflow();
+
+        const initialContext: IChatContext = {
+            userQuery: input.userQuery,
+            pdfId: input.pdfId,
+            userId: input.userId,
+            conversationHistory: input.conversationHistory,
+        };
+
         try {
-            // Step 1: Generate search queries (reuse existing step logic)
-            const generateQueriesStep = new GenerateSearchQueriesStep();
-            const retrieveContextStep = new RetrieveContextStep();
-
-            let context: IChatContext = {
-                userQuery: input.userQuery,
-                pdfId: input.pdfId,
-                conversationHistory: input.conversationHistory,
-            };
-
-            // Execute query generation
-            logger.debug('[ChatAgent.stream] Generating search queries');
-            const queriesResult = await generateQueriesStep.execute(context);
-            if (!queriesResult.success) {
-                yield { type: 'error', error: 'Failed to generate search queries' };
-                return;
-            }
-            context = { ...context, ...queriesResult.data };
-
-            // Step 2: Retrieve context
-            logger.debug('[ChatAgent.stream] Retrieving context');
-            const retrieveResult = await retrieveContextStep.execute(context);
-            if (!retrieveResult.success) {
-                yield { type: 'error', error: 'Failed to retrieve context' };
-                return;
-            }
-            context = { ...context, ...retrieveResult.data };
-
-            // Check if we have context
-            if (!context.contextString || context.retrievedDocuments?.length === 0) {
-                yield { type: 'token', content: 'Tôi không tìm thấy thông tin liên quan trong tài liệu. Vui lòng thử hỏi theo cách khác.' };
-                yield { type: 'done' };
-                return;
+            // Delegate to workflow - it handles all the steps
+            for await (const chunk of workflow.execute(initialContext)) {
+                // Map generic IStreamChunk to ChatAgent's StreamChunk format
+                if (chunk.type === 'token' && chunk.content) {
+                    yield { type: 'token', content: chunk.content };
+                } else if (chunk.type === 'data' && chunk.data?.suggestions) {
+                    yield { type: 'suggestions', suggestions: chunk.data.suggestions };
+                } else if (chunk.type === 'error') {
+                    yield { type: 'error', error: chunk.error };
+                } else if (chunk.type === 'done') {
+                    yield { type: 'done' };
+                }
             }
 
-            // Step 3: Stream the answer using LlmTool
-            logger.debug('[ChatAgent.stream] Streaming answer generation');
-            const llmTool = new LlmTool();
-
-            const messages = [
-                CHAT_SYSTEM_PROMPT.build(),
-                ...context.conversationHistory.slice(-6).map((h) => ({
-                    role: h.role as 'user' | 'assistant',
-                    content: h.content,
-                })),
-                {
-                    role: 'user' as const,
-                    content: buildUserMessageWithContext(context.userQuery, context.contextString),
-                },
-            ];
-
-            let fullResponse = '';
-            const stream = llmTool.streamRun({ messages });
-
-            for await (const chunk of stream) {
-                fullResponse += chunk.content;
-                yield { type: 'token', content: chunk.content };
-            }
-
-            // Step 4: Generate suggestions after streaming is complete
-            logger.debug('[ChatAgent.stream] Generating suggestions');
-            const suggestions = await this.generateSuggestionsInternal(
-                context.userQuery,
-                fullResponse,
-                context.contextString
-            );
-
-            if (suggestions.length > 0) {
-                yield { type: 'suggestions', suggestions };
-            }
-
-            yield { type: 'done' };
-
-            logger.info('[ChatAgent] Stream completed successfully', {
-                answerLength: fullResponse.length,
-                suggestionCount: suggestions.length
-            });
+            logger.info(`[ChatAgent] Stream completed: ${taskName}`);
 
         } catch (error) {
             logger.error('[ChatAgent] Stream failed', {
-                pdfId: input.pdfId,
+                task: taskName,
                 error: (error as Error).message,
                 stack: (error as Error).stack
             });
@@ -215,7 +162,6 @@ export class ChatAgent implements IAgent {
         logger.info('[ChatAgent] Answering library question', {
             userId: input.userId,
             queryLength: input.userQuery.length,
-            historyLength: input.conversationHistory.length
         });
 
         if (!input.userId) {
@@ -223,50 +169,25 @@ export class ChatAgent implements IAgent {
         }
 
         try {
-            // Use GlobalRetrieveContextStep instead of regular retrieval
-            const globalRetrieveStep = new GlobalRetrieveContextStep();
-            const generateAnswerStep = new GenerateAnswerStep();
-            const generateSuggestionsStep = new GenerateSuggestionsStep();
+            const workflow = new AnswerLibraryWorkflow();
 
-            let context: IChatContext = {
+            const initialContext: IChatContext = {
                 userQuery: input.userQuery,
                 userId: input.userId,
                 conversationHistory: input.conversationHistory,
             };
 
-            // Step 1: Retrieve from library
-            logger.debug('[ChatAgent] Retrieving from library');
-            const retrieveResult = await globalRetrieveStep.execute(context);
-            if (!retrieveResult.success) {
-                throw new Error('Failed to retrieve from library');
-            }
-            context = { ...context, ...retrieveResult.data };
-
-            // Step 2: Generate answer
-            logger.debug('[ChatAgent] Generating answer');
-            const answerResult = await generateAnswerStep.execute(context);
-            if (!answerResult.success) {
-                throw new Error('Failed to generate answer');
-            }
-            context = { ...context, ...answerResult.data };
-
-            // Step 3: Generate suggestions
-            logger.debug('[ChatAgent] Generating suggestions');
-            const suggestionsResult = await generateSuggestionsStep.execute(context);
-            if (!suggestionsResult.success) {
-                logger.warn('[ChatAgent] Failed to generate suggestions, continuing anyway');
-            } else {
-                context = { ...context, ...suggestionsResult.data };
-            }
+            // Execute workflow - it handles all steps
+            const finalContext = await workflow.execute(initialContext);
 
             logger.info('[ChatAgent] Library question answered successfully', {
-                answerLength: context.answer?.length || 0,
-                suggestionCount: context.suggestions?.length || 0
+                answerLength: finalContext.answer?.length || 0,
+                suggestionCount: finalContext.suggestions?.length || 0
             });
 
             return {
-                answer: context.answer || '',
-                suggestions: context.suggestions || [],
+                answer: finalContext.answer || '',
+                suggestions: finalContext.suggestions || [],
             };
         } catch (error) {
             logger.error('[ChatAgent] Failed to answer library question', {
@@ -283,45 +204,6 @@ export class ChatAgent implements IAgent {
                 message: 'Failed to answer library question',
                 originalError: (error as Error).message
             });
-        }
-    }
-
-
-    /**
-     * Internal helper to generate suggestions
-     */
-    private async generateSuggestionsInternal(
-        question: string,
-        answer: string,
-        context: string
-    ): Promise<string[]> {
-        try {
-            const llm = new LlmTool();
-
-            const messages = [
-                CHAT_SUGGESTIONS_PROMPT.build(),
-                {
-                    role: 'user' as const,
-                    content: `User asked: "${question}"
-AI answered: "${answer.substring(0, 500)}"
-
-Available context: "${context.substring(0, 1000)}"
-
-Generate 3 follow-up questions:`,
-                },
-            ];
-
-            const response = await llm.execute({ messages });
-            const content = response.content.trim();
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-                const suggestions = JSON.parse(jsonMatch[0]);
-                return suggestions.slice(0, 3);
-            }
-            return [];
-        } catch (e) {
-            logger.warn('[ChatAgent] Failed to generate suggestions', { error: (e as Error).message });
-            return [];
         }
     }
 }

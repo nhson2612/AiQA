@@ -47,7 +47,7 @@ export const buildGlobalRetriever = async (userId: string): Promise<GlobalRetrie
                     metadata: doc.metadata,
                     pdfId: pdf.id,
                     pdfName: pdf.name,
-                })
+                }))
             } catch (error) {
                 logger.error(`Error searching PDF namespace`, { pdfId: pdf.id, error: (error as Error).message })
                 return []

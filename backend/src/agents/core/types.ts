@@ -26,3 +26,23 @@ export interface ITool<TInput = any, TOutput = any> {
     description: string;
     execute(input: TInput): Promise<TOutput>;
 }
+
+/**
+ * Generic streaming chunk interface
+ */
+export interface IStreamChunk<T = any> {
+    type: 'token' | 'data' | 'error' | 'done';
+    content?: string;  // For token chunks (streaming text)
+    data?: T;          // For structured data chunks (e.g., suggestions, metadata)
+    error?: string;    // For error chunks
+}
+
+/**
+ * Streaming step interface - extends regular Step with streaming capability
+ */
+export interface IStreamingStep<TContext extends IWorkflowContext, TChunk = any> extends IStep<TContext> {
+    /**
+     * Stream execution - yields chunks progressively
+     */
+    stream(context: TContext): AsyncGenerator<IStreamChunk<TChunk>>;
+}
