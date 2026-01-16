@@ -22,7 +22,11 @@ const PORT = process.env.PORT || 8000
 
 
 // Middleware
-app.use(helmet())
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+)
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
