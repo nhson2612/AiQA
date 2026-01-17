@@ -30,18 +30,31 @@ app.use(
 
 const getNormalizedOrigins = () => {
   const envOrigins = process.env.CORS_ORIGIN
+  // Log the raw env var for debugging
+  console.log('[DEBUG CORS] ENV CORS_ORIGIN raw:', JSON.stringify(envOrigins))
+
   if (!envOrigins) return ['http://localhost:5173']
-  return envOrigins.split(',').map((origin) => origin.trim().replace(/\/$/, ''))
+
+  return envOrigins.split(',').map((origin) => {
+    // Normalize: lowercase, trim, remove trailing slash
+    return origin.trim().toLowerCase().replace(/\/$/, '')
+  })
 }
 
 app.use(
   cors({
     origin: (requestOrigin, callback) => {
+      // Log incoming request origin
+      console.log('[DEBUG CORS] Incoming Request Origin:', requestOrigin)
+
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!requestOrigin) return callback(null, true)
 
       const allowedOrigins = getNormalizedOrigins()
-      const normalizedRequestOrigin = requestOrigin.replace(/\/$/, '')
+      const normalizedRequestOrigin = requestOrigin.trim().toLowerCase().replace(/\/$/, '')
+
+      console.log('[DEBUG CORS] Normalized Allowed:', allowedOrigins)
+      console.log('[DEBUG CORS] Normalized Request:', normalizedRequestOrigin)
 
       if (allowedOrigins.includes(normalizedRequestOrigin)) {
         callback(null, true)
@@ -117,19 +130,19 @@ app.use((err: AppError, req: express.Request, res: express.Response, next: expre
 const startServer = async () => {
   try {
     if (!AppDataSource.isInitialized) {
-        await AppDataSource.initialize()
-        logger.info('Database connected successfully')
+      await AppDataSource.initialize()
+      logger.info('Database connected successfully')
     }
 
     // Only listen if not in test environment or if we want to explicitly start it
     if (process.env.NODE_ENV !== 'test') {
-        app.listen(PORT, () => {
+      app.listen(PORT, () => {
         logger.info(`Server running on port ${PORT}`, {
-            port: PORT,
-            env: process.env.NODE_ENV || 'development',
-            allowedOrigins: getNormalizedOrigins(),
+          port: PORT,
+          env: process.env.NODE_ENV || 'development',
+          allowedOrigins: getNormalizedOrigins(),
         })
-        })
+      })
     }
   } catch (error) {
     logger.error('Error starting server', { error: (error as Error).message })
