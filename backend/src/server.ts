@@ -35,7 +35,7 @@ const getNormalizedOrigins = () => {
 
   if (!envOrigins) return ['http://localhost:5173']
 
-  return envOrigins.split(',').map((origin) => {
+  return envOrigins.split(/[,;]/).map((origin) => {
     // Normalize: lowercase, trim, remove trailing slash
     return origin.trim().toLowerCase().replace(/\/$/, '')
   })
