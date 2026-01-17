@@ -109,8 +109,10 @@ jobs:
       # ---------------------------------------------------------
       - name: Update Backend with CORS Origin
         run: |
+          frontend_url="${{ steps.deploy-frontend.outputs.url }}"
+          cors_origins="${frontend_url},https://aiqa.nhson2612.space"
           gcloud run services update ${{ env.BACKEND_SERVICE }} \
             --region ${{ env.REGION }} \
-            --update-env-vars CORS_ORIGIN=${{ steps.deploy-frontend.outputs.url }},https://aiqa.nhson2612.space
+            --update-env-vars "CORS_ORIGIN=${cors_origins}"
 
 
