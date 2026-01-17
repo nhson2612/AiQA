@@ -1,6 +1,6 @@
 import { createLogger, format, transports, Logger } from 'winston'
 import { Request, Response, NextFunction } from 'express'
-import { v4 as uuidv4 } from 'uuid'
+const { v4: uuidv4 } = require('uuid')
 
 // Custom log levels
 export const logLevels = {
