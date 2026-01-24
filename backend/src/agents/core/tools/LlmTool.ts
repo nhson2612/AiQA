@@ -18,7 +18,7 @@ const THINKING_START = '<thinking>';
 const THINKING_END = '</thinking>';
 
 const stripThinkingTags = (text: string): string => {
-    return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+    return text.replace(/<think>[\s\S]*?<\/think>/g, '');
 };
 
 type ThinkingFilterState = {
