@@ -14,6 +14,73 @@ export interface LlmStreamOutput {
     stream: AsyncGenerator<{ content: string }>;
 }
 
+const THINKING_START = '<thinking>';
+const THINKING_END = '</thinking>';
+
+const stripThinkingTags = (text: string): string => {
+    return text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+};
+
+type ThinkingFilterState = {
+    inThinking: boolean;
+    buffer: string;
+};
+
+const filterThinkingFromStreamChunk = (text: string, state: ThinkingFilterState): string => {
+    const startKeep = THINKING_START.length - 1;
+    const endKeep = THINKING_END.length - 1;
+    let output = '';
+
+    state.buffer += text;
+
+    while (true) {
+        if (state.inThinking) {
+            const endIdx = state.buffer.indexOf(THINKING_END);
+            if (endIdx === -1) {
+                if (state.buffer.length > endKeep) {
+                    state.buffer = state.buffer.slice(state.buffer.length - endKeep);
+                }
+                return output;
+            }
+            state.buffer = state.buffer.slice(endIdx + THINKING_END.length);
+            state.inThinking = false;
+            continue;
+        }
+
+        const startIdx = state.buffer.indexOf(THINKING_START);
+        if (startIdx === -1) {
+            if (state.buffer.length > startKeep) {
+                output += state.buffer.slice(0, state.buffer.length - startKeep);
+                state.buffer = state.buffer.slice(state.buffer.length - startKeep);
+            }
+            return output;
+        }
+
+        output += state.buffer.slice(0, startIdx);
+        state.buffer = state.buffer.slice(startIdx + THINKING_START.length);
+        state.inThinking = true;
+    }
+};
+
+const finalizeThinkingFilter = (state: ThinkingFilterState): string => {
+    if (state.inThinking) {
+        state.buffer = '';
+        return '';
+    }
+
+    let output = state.buffer;
+    for (let i = 1; i < THINKING_START.length; i++) {
+        const partial = THINKING_START.slice(0, i);
+        if (output.endsWith(partial)) {
+            output = output.slice(0, -i);
+            break;
+        }
+    }
+
+    state.buffer = '';
+    return output;
+};
+
 /**
  * LLM Tool using Groq API.
  * Can be used for both streaming and non-streaming responses.
@@ -45,7 +112,7 @@ export class LlmTool extends Tool<LlmInput, LlmOutput> {
         });
 
         const content = chatCompletion.choices[0]?.message?.content || '';
-        return { content };
+        return { content: stripThinkingTags(content) };
     }
 
     /**
@@ -61,11 +128,22 @@ export class LlmTool extends Tool<LlmInput, LlmOutput> {
             stream: true,
         });
 
+        const state: ThinkingFilterState = { inThinking: false, buffer: '' };
+
         for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
-                yield { content };
+            if (!content) {
+                continue;
             }
+            const filtered = filterThinkingFromStreamChunk(content, state);
+            if (filtered) {
+                yield { content: filtered };
+            }
+        }
+
+        const tail = finalizeThinkingFilter(state);
+        if (tail) {
+            yield { content: tail };
         }
     }
 }
