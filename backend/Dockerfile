@@ -34,10 +34,10 @@ RUN npm ci --omit=dev --legacy-peer-deps && \
 COPY --from=build /app/dist ./dist
 
 # Set up user and permissions
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
-    mkdir -p uploads logs && \
-    chown -R nodejs:nodejs /app
+	RUN addgroup -g 1001 -S nodejs && \
+	    adduser -S nodejs -u 1001 && \
+	    mkdir -p uploads logs db && \
+	    chown -R nodejs:nodejs /app
 
 USER nodejs
 

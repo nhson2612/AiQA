@@ -38,7 +38,7 @@ const getDbConfig = (): DataSourceOptions => {
 
   return {
     type: 'sqlite',
-    database: 'database.sqlite',
+    database: process.env.SQLITE_DATABASE || 'database.sqlite',
     synchronize: true,
     logging: false,
     entities: [User, Pdf, Conversation, Message, Score],
