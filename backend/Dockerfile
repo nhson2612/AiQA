@@ -5,14 +5,13 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Install build dependencies for native modules
 RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
-
 RUN npm ci --legacy-peer-deps
 
 COPY . .
-
 RUN npm run build
 
 # ============================================
@@ -22,18 +21,23 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++
+# Install runtime dependencies for OCR (Tesseract)
+# vie+eng are needed based on the TesseractTool implementation
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-vie
 
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/package*.json ./
-
-RUN npm ci --only=production --legacy-peer-deps && \
+# We only need production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev --legacy-peer-deps && \
     npm cache clean --force
 
-RUN mkdir -p uploads logs && chown -R nodejs:nodejs /app
+# Copy built app from build stage
+COPY --from=build /app/dist ./dist
+
+# Set up user and permissions
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    mkdir -p uploads logs && \
+    chown -R nodejs:nodejs /app
 
 USER nodejs
 

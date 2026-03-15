@@ -14,8 +14,8 @@ export interface LlmStreamOutput {
     stream: AsyncGenerator<{ content: string }>;
 }
 
-const THINKING_START = '<thinking>';
-const THINKING_END = '</thinking>';
+const THINKING_START = '<think>';
+const THINKING_END = '</think>';
 
 const stripThinkingTags = (text: string): string => {
     return text.replace(/<think>[\s\S]*?<\/think>/g, '');
