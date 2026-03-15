@@ -38,9 +38,14 @@ export class RetrieverTool extends Tool<RetrieverInput, RetrieverOutput> {
         const indexName = process.env.PINECONE_INDEX || 'aiqa';
         const index = client.index(indexName);
 
+        const embeddingModel =
+            process.env.GOOGLE_EMBEDDING_MODEL ||
+            process.env.GEMINI_EMBEDDING_MODEL ||
+            'gemini-embedding-001';
+
         const embeddings = new GoogleGenerativeAIEmbeddings({
             apiKey: process.env.GOOGLE_API_KEY,
-            modelName: 'text-embedding-004',
+            modelName: embeddingModel,
         });
 
         const vectorStore = await PineconeStore.fromExistingIndex(embeddings, {

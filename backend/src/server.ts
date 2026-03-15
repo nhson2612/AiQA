@@ -20,6 +20,8 @@ const app = express()
 app.set('trust proxy', 1) // Trust first proxy (Cloud Run Load Balancer)
 const PORT = process.env.PORT || 8000
 
+// Attach request id as early as possible so CORS/helmet errors also get an id.
+app.use(withRequestId)
 
 // Middleware
 app.use(
@@ -28,52 +30,71 @@ app.use(
   })
 )
 
-const getNormalizedOrigins = () => {
-  const envOrigins = process.env.CORS_ORIGIN
-  // Log the raw env var for debugging
-  console.log('[DEBUG CORS] ENV CORS_ORIGIN raw:', JSON.stringify(envOrigins))
+const isCorsDebug = process.env.DEBUG_CORS === 'true'
 
-  if (!envOrigins) return ['http://localhost:5173']
+const normalizeOrigin = (origin: string) => origin.trim().toLowerCase().replace(/\/$/, '')
 
-  return envOrigins.split(/[,;]/).map((origin) => {
-    // Normalize: lowercase, trim, remove trailing slash
-    return origin.trim().toLowerCase().replace(/\/$/, '')
-  })
-}
+const corsConfig = (() => {
+  const envOriginsRaw = process.env.CORS_ORIGIN
+  const envOrigins = (envOriginsRaw || '').trim()
+
+  if (!envOrigins) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.warn('CORS_ORIGIN is not set in production; defaulting to http://localhost:5173')
+    }
+    return { allowAny: false, allowedOrigins: ['http://localhost:5173'] }
+  }
+
+  if (envOrigins === '*' || envOrigins.split(/[,;]/).some((x) => x.trim() === '*')) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.warn('CORS_ORIGIN is set to "*"; this allows any origin (use with care)')
+    }
+    return { allowAny: true, allowedOrigins: [] as string[] }
+  }
+
+  const allowedOrigins = envOrigins
+    .split(/[,;]/)
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean)
+
+  return { allowAny: false, allowedOrigins }
+})()
 
 app.use(
   cors({
     origin: (requestOrigin, callback) => {
-      // Log incoming request origin
-      console.log('[DEBUG CORS] Incoming Request Origin:', requestOrigin)
-
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!requestOrigin) return callback(null, true)
 
-      const allowedOrigins = getNormalizedOrigins()
-      const normalizedRequestOrigin = requestOrigin.trim().toLowerCase().replace(/\/$/, '')
+      const normalizedRequestOrigin = normalizeOrigin(requestOrigin)
 
-      console.log('[DEBUG CORS] Normalized Allowed:', allowedOrigins)
-      console.log('[DEBUG CORS] Normalized Request:', normalizedRequestOrigin)
+      if (isCorsDebug) {
+        logger.debug('[DEBUG CORS] Incoming Request Origin: %s', requestOrigin)
+        logger.debug('[DEBUG CORS] Normalized Request Origin: %s', normalizedRequestOrigin)
+        logger.debug(
+          '[DEBUG CORS] Allowed origins: %s',
+          corsConfig.allowAny ? '*' : JSON.stringify(corsConfig.allowedOrigins)
+        )
+      }
 
-      if (allowedOrigins.includes(normalizedRequestOrigin)) {
+      if (corsConfig.allowAny || corsConfig.allowedOrigins.includes(normalizedRequestOrigin)) {
         callback(null, true)
       } else {
-        console.warn(`[CORS] Blocked request from origin: ${requestOrigin}`)
-        callback(new Error('Not allowed by CORS'))
+        logger.warn(`[CORS] Blocked request from origin: ${requestOrigin}`)
+        callback(new AppError('Not allowed by CORS', 403, true, { origin: requestOrigin }), false)
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
     exposedHeaders: ['Set-Cookie', 'X-Request-ID'],
+    optionsSuccessStatus: 204,
   })
 )
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // Logging middleware
-app.use(withRequestId)
 app.use(requestLogger)
 
 const sessionMiddleware = session({

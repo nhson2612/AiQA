@@ -89,9 +89,14 @@ export class EmbeddingTool extends Tool<EmbeddingInput, EmbeddingOutput> {
             throw new Error('No chunks created');
         }
 
+        const embeddingModel =
+            process.env.GOOGLE_EMBEDDING_MODEL ||
+            process.env.GEMINI_EMBEDDING_MODEL ||
+            'gemini-embedding-001';
+
         const embeddings = new GoogleGenerativeAIEmbeddings({
             apiKey: process.env.GOOGLE_API_KEY,
-            modelName: 'text-embedding-004',
+            modelName: embeddingModel,
         });
 
         const client = getPineconeClient();
