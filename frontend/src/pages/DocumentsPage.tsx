@@ -63,6 +63,7 @@ export const DocumentsPage: React.FC = () => {
   }
 
   const filteredPdfs = React.useMemo(() => {
+    if (!Array.isArray(pdfs)) return []
     if (activeTab === 'all' || activeTab === 'pdfs') return pdfs
     if (activeTab === 'recent') {
       return [...pdfs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5)

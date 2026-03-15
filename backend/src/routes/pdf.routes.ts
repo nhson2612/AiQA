@@ -59,6 +59,7 @@ router.post('/', authenticate as any, upload.single('file'), async (req, res, ne
       id: fileId,
       name: req.file.originalname,
       userId: req.user!.id,
+      size: req.file.size,
     })
 
     await pdfRepository.save(pdf)

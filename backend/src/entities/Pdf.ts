@@ -35,6 +35,9 @@ export class Pdf {
   @UpdateDateColumn()
   updatedAt: Date
 
+  @Column({ type: 'int', default: 0 })
+  size: number
+
   @Column({ type: 'simple-json', nullable: true })
   mindMapSummary: any
 
@@ -43,6 +46,9 @@ export class Pdf {
       id: this.id,
       name: this.name,
       userId: this.userId,
+      size: this.size,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
       mindMapSummary: this.mindMapSummary,
     }
   }
