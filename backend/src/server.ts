@@ -157,15 +157,15 @@ const startServer = async () => {
 
     // Only listen if not in test environment or if we want to explicitly start it
     if (process.env.NODE_ENV !== 'test') {
-      app.listen(PORT, () => {
-        logger.info(`Server running on port ${PORT}`, {
-          port: PORT,
-          env: process.env.NODE_ENV || 'development',
-          allowedOrigins: getNormalizedOrigins(),
-        })
-      })
-    }
-  } catch (error) {
+	      app.listen(PORT, () => {
+	        logger.info(`Server running on port ${PORT}`, {
+	          port: PORT,
+	          env: process.env.NODE_ENV || 'development',
+	          allowedOrigins: corsConfig.allowAny ? '*' : corsConfig.allowedOrigins,
+	        })
+	      })
+	    }
+	  } catch (error) {
     logger.error('Error starting server', { error: (error as Error).message })
     process.exit(1)
   }
