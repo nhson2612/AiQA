@@ -1,10 +1,29 @@
-version: '3.8'
+version: "3.8"
 
 networks:
   aiqa-network:
     driver: bridge
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: aiqa_caddy
+    restart: unless-stopped
+    networks:
+      - aiqa-network
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_DOMAIN: aiqa.nhson2612.space
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+
   redis:
     image: redis:7-alpine
     container_name: aiqa_redis
@@ -12,7 +31,7 @@ services:
     networks:
       - aiqa-network
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
@@ -26,30 +45,28 @@ services:
         limits:
           memory: 256M
 
-	  backend:
-	    build:
-	      context: ./backend
-	      dockerfile: Dockerfile
-	    container_name: aiqa_backend
-	    restart: unless-stopped
-	    networks:
-	      - aiqa-network
-	    ports:
-	      - '8000:8000'
-	    env_file:
-	      - ./backend/.env
-	    environment:
-	      # Override for Docker networking
-	      REDIS_HOST: redis
-	      REDIS_PORT: 6379
-	      # Persist SQLite DB without masking /app (which would hide dist/ from the image)
-	      SQLITE_DATABASE: /app/db/database.sqlite
-	    volumes:
-	      - backend-uploads:/app/uploads
-	      - backend-db:/app/db
-	    depends_on:
-	      redis:
-	        condition: service_healthy
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aiqa_backend
+    restart: unless-stopped
+    networks:
+      - aiqa-network
+    expose:
+      - "8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SQLITE_DATABASE: /app/db/database.sqlite
+    volumes:
+      - backend-uploads:/app/uploads
+      - backend-db:/app/db
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
@@ -61,17 +78,18 @@ services:
         limits:
           memory: 512M
 
-  # 🖥️ Frontend (React/Vite + Nginx)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
     container_name: aiqa_frontend
     restart: unless-stopped
     networks:
       - aiqa-network
-    ports:
-      - '80:80'
+    expose:
+      - "80"
     depends_on:
       backend:
         condition: service_healthy
@@ -85,7 +103,10 @@ services:
         limits:
           memory: 128M
 
-	volumes:
-	  redis-data:
-	  backend-uploads:
-	  backend-db:
+volumes:
+  redis-data:
+  backend-uploads:
+  backend-db:
+  caddy-data:
+  caddy-config:
+
