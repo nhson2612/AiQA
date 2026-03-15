@@ -113,23 +113,9 @@ router.get('/:id', authenticate, validateRequest(pdfIdParamSchema), async (req, 
     const uploadDir = process.env.UPLOAD_DIR || './uploads'
     const filePath = path.join(uploadDir, `${pdf.id}.pdf`)
 
-    // Construct absolute URL for PDF download
-    let baseUrl = process.env.BACKEND_URL
-
-    if (!baseUrl) {
-      // Fallback: construct from request headers
-      // Handle X-Forwarded-Proto for proxies/load balancers
-      const protocol = req.get('x-forwarded-proto') || req.protocol
-      const host = req.get('x-forwarded-host') || req.get('host')
-      baseUrl = `${protocol}://${host}`
-    }
-
-    const downloadUrl = `${baseUrl}/api/pdfs/${pdf.id}/download`
-
-    contextLogger.debug('PDF Download details', {
-      baseUrl,
-      downloadUrl,
-    })
+    // Return a relative URL to avoid leaking a wrong host (e.g. BACKEND_URL=localhost)
+    // and let the frontend decide how to resolve it (same-origin proxy or VITE_API_URL).
+    const downloadUrl = `/api/pdfs/${pdf.id}/download`
 
     res.json({
       pdf: pdf.toJSON(),
