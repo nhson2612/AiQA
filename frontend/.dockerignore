@@ -5,11 +5,5 @@ dist
 .gitignore
 .dockerignore
 npm-debug.log
-README.md
-vite.config.ts
-tsconfig.json
-tsconfig.node.json
-.eslintrc.cjs
-.prettierrc
-tailwind.config.js
-postcss.config.js
+# Keep config files for build stage
+# README.md

@@ -7,8 +7,7 @@ uploads
 .gitignore
 .dockerignore
 npm-debug.log
-README.md
-jest.config.js
-tsconfig.json
-.eslintrc.json
+# tsconfig.json should NOT be ignored as it is needed for build
+# jest.config.js
+# .eslintrc.json
 tests
